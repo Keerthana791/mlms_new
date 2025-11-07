@@ -9,6 +9,8 @@ const authRoutes = require('./routes/auth.routes');
 const courseRoutes = require('./routes/course.routes');
 const assignmentRoutes = require('./routes/assignment.routes');
 const submissionRoutes = require('./routes/submission.routes');
+const enrollmentRoutes = require('./routes/enrollment.routes');
+
 
 // Initialize Express app
 const app = express();
@@ -25,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
+app.use('/api/enrollments', enrollmentRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {

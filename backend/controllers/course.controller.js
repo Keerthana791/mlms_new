@@ -30,14 +30,17 @@ const createCourse = async (req, res) => {
 // List Courses (tenant scoped)
 const listCourses = async (req, res) => {
   try {
+    const role = req.user?.get('role');
+
     const query = new Parse.Query('Course');
     query.equalTo('tenantId', req.tenantId);
 
-    // If teacher, show only their courses
-    if (req.user?.get('role') === 'Teacher') {
+    if (role === 'Teacher') {
+      // Teachers see only their courses
       query.equalTo('teacherId', req.user.id);
     }
 
+    // Students can see all courses in the tenant to allow discovery/enrollment
     const results = await query.find({ useMasterKey: true });
     res.json(results.map(toJSON));
   } catch (err) {
@@ -52,6 +55,19 @@ const getCourse = async (req, res) => {
     const { id } = req.params;
     const course = await new Parse.Query('Course').get(id, { useMasterKey: true });
     if (course.get('tenantId') !== req.tenantId) return res.status(404).json({ error: 'Not found' });
+
+    const role = req.user?.get('role');
+    if (role === 'Student') {
+      // Students can see the course only if enrolled
+      const enrQ = new Parse.Query('Enrollment');
+      enrQ.equalTo('tenantId', req.tenantId);
+      enrQ.equalTo('studentId', req.user.id);
+      enrQ.equalTo('courseId', id);
+      enrQ.equalTo('status', 'active');
+      const enr = await enrQ.first({ useMasterKey: true });
+      if (!enr) return res.status(403).json({ error: 'Not enrolled' });
+    }
+
     res.json(toJSON(course));
   } catch (err) {
     console.error('Get course error:', err);
