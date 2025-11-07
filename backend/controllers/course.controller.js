@@ -1,0 +1,119 @@
+const Parse = require('../config/parse');
+
+// Helpers
+const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
+
+// Create Course (Admin, Teacher)
+const createCourse = async (req, res) => {
+  try {
+    const { title, description } = req.body;
+    if (!title) return res.status(400).json({ error: 'title is required' });
+
+    const Course = Parse.Object.extend('Course');
+    const course = new Course();
+    course.set('title', title);
+    course.set('description', description || '');
+    // RBAC: Teachers can only create for themselves; Admin can assign any teacher
+    const role = req.user.get('role');
+    const assignedTeacherId = role === 'Teacher' ? req.user.id : (req.body.teacherId || req.user.id);
+    course.set('teacherId', assignedTeacherId);
+    course.set('tenantId', req.tenantId);
+
+    const saved = await course.save(null, { useMasterKey: true });
+    res.status(201).json(toJSON(saved));
+  } catch (err) {
+    console.error('Create course error:', err);
+    res.status(500).json({ error: 'Failed to create course' });
+  }
+};
+
+// List Courses (tenant scoped)
+const listCourses = async (req, res) => {
+  try {
+    const query = new Parse.Query('Course');
+    query.equalTo('tenantId', req.tenantId);
+
+    // If teacher, show only their courses
+    if (req.user?.get('role') === 'Teacher') {
+      query.equalTo('teacherId', req.user.id);
+    }
+
+    const results = await query.find({ useMasterKey: true });
+    res.json(results.map(toJSON));
+  } catch (err) {
+    console.error('List courses error:', err);
+    res.status(500).json({ error: 'Failed to list courses' });
+  }
+};
+
+// Get Course by id (tenant scoped)
+const getCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await new Parse.Query('Course').get(id, { useMasterKey: true });
+    if (course.get('tenantId') !== req.tenantId) return res.status(404).json({ error: 'Not found' });
+    res.json(toJSON(course));
+  } catch (err) {
+    console.error('Get course error:', err);
+    res.status(404).json({ error: 'Course not found' });
+  }
+};
+
+// Update Course (Admin, Teacher owning the course)
+const updateCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await new Parse.Query('Course').get(id, { useMasterKey: true });
+    if (course.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
+
+    const userRole = req.user.get('role');
+    const isOwnerTeacher = userRole === 'Teacher' && course.get('teacherId') === req.user.id;
+    const isAdmin = userRole === 'Admin';
+    if (!isOwnerTeacher && !isAdmin) return res.status(403).json({ error: 'Insufficient permissions' });
+
+    const { title, description, teacherId } = req.body;
+    if (title !== undefined) course.set('title', title);
+    if (description !== undefined) course.set('description', description);
+    // Prevent Teachers from reassigning the course to another teacher
+    if (teacherId !== undefined) {
+      if (userRole === 'Teacher') {
+        return res.status(403).json({ error: 'Teachers cannot reassign teacherId' });
+      }
+      course.set('teacherId', teacherId);
+    }
+
+    const saved = await course.save(null, { useMasterKey: true });
+    res.json(toJSON(saved));
+  } catch (err) {
+    console.error('Update course error:', err);
+    res.status(500).json({ error: 'Failed to update course' });
+  }
+};
+
+// Delete Course (Admin, Teacher owning the course)
+const deleteCourse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const course = await new Parse.Query('Course').get(id, { useMasterKey: true });
+    if (course.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
+
+    const userRole = req.user.get('role');
+    const isOwnerTeacher = userRole === 'Teacher' && course.get('teacherId') === req.user.id;
+    const isAdmin = userRole === 'Admin';
+    if (!isOwnerTeacher && !isAdmin) return res.status(403).json({ error: 'Insufficient permissions' });
+
+    await course.destroy({ useMasterKey: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete course error:', err);
+    res.status(500).json({ error: 'Failed to delete course' });
+  }
+};
+
+module.exports = {
+  createCourse,
+  listCourses,
+  getCourse,
+  updateCourse,
+  deleteCourse,
+};
