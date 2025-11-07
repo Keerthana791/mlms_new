@@ -10,7 +10,7 @@ const courseRoutes = require('./routes/course.routes');
 const assignmentRoutes = require('./routes/assignment.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const enrollmentRoutes = require('./routes/enrollment.routes');
-
+const materialRoutes = require('./routes/material.routes');
 
 // Initialize Express app
 const app = express();
@@ -28,6 +28,7 @@ app.use('/api/courses', courseRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
+app.use('/api/courses', materialRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
