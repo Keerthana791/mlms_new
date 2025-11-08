@@ -47,8 +47,10 @@ const createSubmission = async (req, res) => {
     }
 
     let file = null;
-    if (fileBase64 && fileName) {
-      file = new Parse.File(fileName, { base64: fileBase64 }, contentType);
+    if (fileBase64 && (fileName || req.file)) {
+      const originalName = fileName || (req.file ? req.file.originalname : 'upload.bin');
+      const safeName = String(originalName).replace(/[^A-Za-z0-9._-]/g, '_');
+      file = new Parse.File(safeName, { base64: fileBase64 }, contentType);
       await file.save({ useMasterKey: true });
     }
 
