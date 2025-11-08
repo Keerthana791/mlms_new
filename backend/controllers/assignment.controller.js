@@ -3,8 +3,15 @@ const Parse = require('../config/parse');
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
 // Helper to check if current user (Teacher) owns the course
-async function assertTeacherOwnsCourse(courseId, user) {
+async function assertTeacherOwnsCourse(courseId, user, tenantId) {
   const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+  // Enforce tenant isolation for all roles
+  if (course.get('tenantId') !== tenantId) {
+    const err = new Error('Forbidden');
+    err.status = 403;
+    throw err;
+  }
+  // Teachers must own the course
   if (user.get('role') === 'Teacher' && course.get('teacherId') !== user.id) {
     const err = new Error('Forbidden');
     err.status = 403;
@@ -40,7 +47,7 @@ const createAssignment = async (req, res) => {
     const { courseId, title, description, dueDate } = req.body || {};
     if (!courseId || !title) return res.status(400).json({ error: 'courseId and title are required' });
 
-    await assertTeacherOwnsCourse(courseId, req.user);
+    await assertTeacherOwnsCourse(courseId, req.user, req.tenantId);
 
     // Optional file via multipart or base64 JSON
     let { fileBase64, fileName, fileType, contentType } = req.body || {};
@@ -139,7 +146,7 @@ const updateAssignment = async (req, res) => {
     const assignment = await new Parse.Query('Assignment').get(id, { useMasterKey: true });
     if (assignment.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
 
-    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user);
+    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user, req.tenantId);
 
     const { title, description, dueDate } = req.body || {};
     if (title !== undefined) assignment.set('title', title);
@@ -161,7 +168,7 @@ const deleteAssignment = async (req, res) => {
     const assignment = await new Parse.Query('Assignment').get(id, { useMasterKey: true });
     if (assignment.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
 
-    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user);
+    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user,req.tenantId);
 
     await assignment.destroy({ useMasterKey: true });
     res.json({ success: true });
