@@ -13,29 +13,78 @@ async function assertTeacherOwnsCourse(courseId, user) {
   return course;
 }
 
-// Create Assignment
+async function ensureCanViewAssignments(courseId, tenantId, user) {
+  const role = user.get('role');
+  if (role === 'Admin') return true;
+  if (role === 'Teacher') {
+    const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+    if (course.get('tenantId') === tenantId && course.get('teacherId') === user.id) return true;
+    const err = new Error('Forbidden'); err.status = 403; throw err;
+  }
+  if (role === 'Student') {
+    const enrQ = new Parse.Query('Enrollment');
+    enrQ.equalTo('tenantId', tenantId);
+    enrQ.equalTo('studentId', user.id);
+    enrQ.equalTo('courseId', courseId);
+    enrQ.equalTo('status', 'active');
+    const enr = await enrQ.first({ useMasterKey: true });
+    if (!enr) { const err = new Error('Not enrolled'); err.status = 403; throw err; }
+    return true;
+  }
+  const err = new Error('Forbidden'); err.status = 403; throw err;
+}
+
+// Create Assignment (supports optional file attachment)
 const createAssignment = async (req, res) => {
   try {
-    const { courseId, title, description, dueDate } = req.body;
+    const { courseId, title, description, dueDate } = req.body || {};
     if (!courseId || !title) return res.status(400).json({ error: 'courseId and title are required' });
 
-    // Ensure teacher owns the course (or Admin)
     await assertTeacherOwnsCourse(courseId, req.user);
+
+    // Optional file via multipart or base64 JSON
+    let { fileBase64, fileName, fileType, contentType } = req.body || {};
+    if (req.file && req.file.buffer) {
+      fileName = fileName || req.file.originalname;
+      contentType = contentType || req.file.mimetype;
+      if (!fileType) {
+        if (contentType === 'application/pdf') fileType = 'pdf';
+        else if (contentType && contentType.startsWith('video/')) fileType = 'video';
+        else if (contentType && contentType.startsWith('application/')) fileType = 'doc';
+      }
+      fileBase64 = req.file.buffer.toString('base64');
+    }
+
+    let file = null;
+    if (fileBase64 && fileName) {
+      file = new Parse.File(fileName, { base64: fileBase64 }, contentType);
+      await file.save({ useMasterKey: true });
+    }
 
     const Assignment = Parse.Object.extend('Assignment');
     const assignment = new Assignment();
+    assignment.set('tenantId', req.tenantId);
     assignment.set('courseId', courseId);
     assignment.set('title', title);
     if (description !== undefined) assignment.set('description', description);
     if (dueDate) assignment.set('dueDate', new Date(dueDate));
-    assignment.set('tenantId', req.tenantId);
+    if (file) assignment.set('file', file);
+    if (fileType) assignment.set('fileType', fileType);
+    assignment.set('uploadedBy', req.user.id);
 
     const saved = await assignment.save(null, { useMasterKey: true });
     res.status(201).json(toJSON(saved));
   } catch (err) {
     console.error('Create assignment error:', err);
-    res.status(err.status || 500).json({ error: err.status ? 'Forbidden' : 'Failed to create assignment' });
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Failed to create assignment' });
   }
+};
+
+// Course-scoped create: POST /api/courses/:courseId/assignments
+const createAssignmentForCourse = async (req, res) => {
+  req.body = req.body || {};
+  req.body.courseId = req.params.courseId;
+  return createAssignment(req, res);
 };
 
 // List Assignments (tenant scoped, optional filter by courseId)
@@ -50,6 +99,23 @@ const listAssignments = async (req, res) => {
   } catch (err) {
     console.error('List assignments error:', err);
     res.status(500).json({ error: 'Failed to list assignments' });
+  }
+};
+
+// Course-scoped list: GET /api/courses/:courseId/assignments with RBAC/enrollment
+const listAssignmentsForCourse = async (req, res) => {
+  try {
+    const courseId = req.params.courseId;
+    await ensureCanViewAssignments(courseId, req.tenantId, req.user);
+    const query = new Parse.Query('Assignment');
+    query.equalTo('tenantId', req.tenantId);
+    query.equalTo('courseId', courseId);
+    query.ascending('createdAt');
+    const results = await query.find({ useMasterKey: true });
+    res.json(results.map(toJSON));
+  } catch (err) {
+    console.error('List course assignments error:', err);
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Failed to list assignments' });
   }
 };
 
@@ -73,10 +139,9 @@ const updateAssignment = async (req, res) => {
     const assignment = await new Parse.Query('Assignment').get(id, { useMasterKey: true });
     if (assignment.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
 
-    // Ensure ownership
     await assertTeacherOwnsCourse(assignment.get('courseId'), req.user);
 
-    const { title, description, dueDate } = req.body;
+    const { title, description, dueDate } = req.body || {};
     if (title !== undefined) assignment.set('title', title);
     if (description !== undefined) assignment.set('description', description);
     if (dueDate !== undefined) assignment.set('dueDate', new Date(dueDate));
@@ -108,7 +173,9 @@ const deleteAssignment = async (req, res) => {
 
 module.exports = {
   createAssignment,
+  createAssignmentForCourse,
   listAssignments,
+  listAssignmentsForCourse,
   getAssignment,
   updateAssignment,
   deleteAssignment,

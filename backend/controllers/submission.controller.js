@@ -15,19 +15,53 @@ async function assertTeacherOwnsAssignment(assignmentId, user) {
   return true;
 }
 
-// Create a submission (Student)
+// Create a submission (Student) with optional file attachment
 const createSubmission = async (req, res) => {
   try {
-    const { assignmentId, content } = req.body;
-    if (!assignmentId || !content) return res.status(400).json({ error: 'assignmentId and content are required' });
+    let { assignmentId, content, fileBase64, fileName, fileType, contentType } = req.body || {};
+    if (!assignmentId && req.params?.assignmentId) assignmentId = req.params.assignmentId;
+    if (!assignmentId) return res.status(400).json({ error: 'assignmentId is required' });
+    if (!content && !req.file && !fileBase64) return res.status(400).json({ error: 'Either content or file is required' });
+
+    // Ensure student is enrolled in the assignment's course (tenant scoped)
+    const assignment = await new Parse.Query('Assignment').get(assignmentId, { useMasterKey: true });
+    if (assignment.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
+    const enrQ = new Parse.Query('Enrollment');
+    enrQ.equalTo('tenantId', req.tenantId);
+    enrQ.equalTo('studentId', req.user.id);
+    enrQ.equalTo('courseId', assignment.get('courseId'));
+    enrQ.equalTo('status', 'active');
+    const enr = await enrQ.first({ useMasterKey: true });
+    if (!enr) return res.status(403).json({ error: 'Not enrolled' });
+
+    // If multipart provided, extract from req.file
+    if (req.file && req.file.buffer) {
+      fileName = fileName || req.file.originalname;
+      contentType = contentType || req.file.mimetype;
+      if (!fileType) {
+        if (contentType === 'application/pdf') fileType = 'pdf';
+        else if (contentType && contentType.startsWith('video/')) fileType = 'video';
+        else if (contentType && contentType.startsWith('application/')) fileType = 'doc';
+      }
+      fileBase64 = req.file.buffer.toString('base64');
+    }
+
+    let file = null;
+    if (fileBase64 && fileName) {
+      file = new Parse.File(fileName, { base64: fileBase64 }, contentType);
+      await file.save({ useMasterKey: true });
+    }
 
     const Submission = Parse.Object.extend('Submission');
     const submission = new Submission();
+    submission.set('tenantId', req.tenantId);
     submission.set('assignmentId', assignmentId);
     submission.set('studentId', req.user.id);
-    submission.set('content', content);
+    if (content) submission.set('content', content);
+    if (file) submission.set('file', file);
+    if (fileType) submission.set('fileType', fileType);
     submission.set('status', 'submitted');
-    submission.set('tenantId', req.tenantId);
+    submission.set('submittedAt', new Date());
 
     const saved = await submission.save(null, { useMasterKey: true });
     res.status(201).json(toJSON(saved));
@@ -51,6 +85,13 @@ const listSubmissions = async (req, res) => {
     if (role === 'Student') {
       query.equalTo('studentId', req.user.id);
     }
+    if (role === 'Teacher') {
+      // Teacher can only view submissions for assignments in courses they own
+      if (!assignmentId) {
+        return res.status(400).json({ error: 'assignmentId is required for teachers' });
+      }
+      await assertTeacherOwnsAssignment(assignmentId, req.user);
+    }
 
     const results = await query.find({ useMasterKey: true });
     res.json(results.map(toJSON));
@@ -71,6 +112,9 @@ const getSubmission = async (req, res) => {
     if (role === 'Student' && submission.get('studentId') !== req.user.id) {
       return res.status(403).json({ error: 'Forbidden' });
     }
+    if (role === 'Teacher') {
+      await assertTeacherOwnsAssignment(submission.get('assignmentId'), req.user);
+    }
 
     res.json(toJSON(submission));
   } catch (err) {
@@ -83,15 +127,22 @@ const getSubmission = async (req, res) => {
 const gradeSubmission = async (req, res) => {
   try {
     const { id } = req.params;
-    const { grade } = req.body;
+    const { grade, feedback } = req.body || {};
     if (grade === undefined) return res.status(400).json({ error: 'grade is required' });
+
+    // Enforce marks out of 10
+    const numericGrade = Number(grade);
+    if (!Number.isFinite(numericGrade) || numericGrade < 0 || numericGrade > 10) {
+      return res.status(400).json({ error: 'grade must be a number between 0 and 10' });
+    }
 
     const submission = await new Parse.Query('Submission').get(id, { useMasterKey: true });
     if (submission.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
 
     await assertTeacherOwnsAssignment(submission.get('assignmentId'), req.user);
 
-    submission.set('grade', grade);
+    submission.set('grade', numericGrade);
+    if (feedback !== undefined) submission.set('feedback', feedback);
     submission.set('status', 'graded');
     const saved = await submission.save(null, { useMasterKey: true });
     res.json(toJSON(saved));
