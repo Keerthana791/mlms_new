@@ -8,7 +8,11 @@ async function getQuiz(quizId) {
 
 function remainingSeconds(expiresAt) {
   if (!expiresAt) return null;
-  const diff = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 1000);
+  const d = (expiresAt && typeof expiresAt === 'object' && expiresAt.iso)
+    ? new Date(expiresAt.iso)
+    : new Date(expiresAt);
+  if (isNaN(d)) return 0;
+  const diff = Math.floor((d.getTime() - Date.now()) / 1000);
   return diff > 0 ? diff : 0;
 }
 
