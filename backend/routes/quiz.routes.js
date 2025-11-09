@@ -14,6 +14,7 @@ const {
 
 router.use(requireAuth);
 router.use(tenantMiddleware);
+router.get('/__ping_quiz', (req, res) => res.json({ ok: true }));
 
 // Course-scoped
 router.post('/:courseId/quizzes', requireRole(['Admin', 'Teacher']), createQuizForCourse);

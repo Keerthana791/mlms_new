@@ -6,11 +6,15 @@ const Parse = require('./config/parse');
 
 // Import routes
 const authRoutes = require('./routes/auth.routes');
+const quizRoutes = require('./routes/quiz.routes');
 const courseRoutes = require('./routes/course.routes');
 const assignmentRoutes = require('./routes/assignment.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const enrollmentRoutes = require('./routes/enrollment.routes');
 const materialRoutes = require('./routes/material.routes');
+
+const quizQuestionRoutes = require('./routes/quizQuestion.routes');
+const quizAttemptRoutes = require('./routes/quizAttempt.routes');
 
 // Initialize Express app
 const app = express();
@@ -24,11 +28,16 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/courses', quizRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/courses', materialRoutes);
+
+app.use('/api/quizzes', quizQuestionRoutes);
+app.use('/api/quizzes', quizAttemptRoutes);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

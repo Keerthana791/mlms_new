@@ -134,9 +134,14 @@ const updateQuizForCourse = async (req, res) => {
     const quiz = await new Parse.Query('Quiz').get(quizId, { useMasterKey: true });
     if (quiz.get('tenantId') !== req.tenantId || quiz.get('courseId') !== courseId) return res.status(404).json({ error: 'Not found' });
 
-    // Lock quiz if any attempts exist
-    if (await hasAttempts(quizId, req.tenantId)) {
-      return res.status(400).json({ error: 'Quiz is locked because students have already started attempts' });
+    // If attempts exist, only allow unpublish (isPublished=false); block other edits
+    const attemptsExist = await hasAttempts(quizId, req.tenantId);
+    if (attemptsExist) {
+      const payload = req.body || {};
+      const onlyUnpublish = Object.keys(payload).every(k => k === 'isPublished') && payload.isPublished === false;
+      if (!onlyUnpublish) {
+        return res.status(400).json({ error: 'Quiz is locked because students have already started attempts' });
+      }
     }
 
     const { title, description, duration, showAnswersAfterSubmit, isPublished, openAt, closeAt } = req.body || {};
@@ -190,9 +195,7 @@ const closeQuiz = async (req, res) => {
     await assertTeacherOwnsCourse(courseId, req.user, req.tenantId);
     const quiz = await new Parse.Query('Quiz').get(quizId, { useMasterKey: true });
     if (quiz.get('tenantId') !== req.tenantId || quiz.get('courseId') !== courseId) return res.status(404).json({ error: 'Not found' });
-    if (await hasAttempts(quizId, req.tenantId)) {
-      return res.status(400).json({ error: 'Quiz is locked because students have already started attempts' });
-    }
+    // Allow closing (unpublish) even after attempts exist, to stop visibility
     quiz.set('isPublished', false);
     const saved = await quiz.save(null, { useMasterKey: true });
     res.json(toJSON(saved));
@@ -208,9 +211,56 @@ const deleteQuizForCourse = async (req, res) => {
     await assertTeacherOwnsCourse(courseId, req.user, req.tenantId);
     const quiz = await new Parse.Query('Quiz').get(quizId, { useMasterKey: true });
     if (quiz.get('tenantId') !== req.tenantId || quiz.get('courseId') !== courseId) return res.status(404).json({ error: 'Not found' });
-    if (await hasAttempts(quizId, req.tenantId)) {
-      return res.status(400).json({ error: 'Quiz is locked because students have already started attempts' });
+    const attemptsQ = new Parse.Query('QuizAttempt');
+    attemptsQ.equalTo('tenantId', req.tenantId);
+    attemptsQ.equalTo('quizId', quizId);
+    const attemptsExist = await attemptsQ.count({ useMasterKey: true });
+
+    if (attemptsExist > 0) {
+      // Support completed-only hard delete when explicitly forced
+      const isForce = (req.query && (req.query.force === 'true' || req.query.force === true));
+      if (!isForce) {
+        return res.status(400).json({ error: 'Quiz is locked because students have already started attempts' });
+      }
+      // Ensure no in-progress attempts remain
+      const inProgQ = new Parse.Query('QuizAttempt');
+      inProgQ.equalTo('tenantId', req.tenantId);
+      inProgQ.equalTo('quizId', quizId);
+      inProgQ.notEqualTo('status', 'submitted');
+      const inProgCount = await inProgQ.count({ useMasterKey: true });
+      if (inProgCount > 0) {
+        return res.status(400).json({ error: 'Cannot delete while attempts are still in progress' });
+      }
+
+      // Cascade delete: answers -> attempts -> questions -> quiz
+      const attempts = await attemptsQ.find({ useMasterKey: true });
+      const attemptIds = attempts.map(a => a.id);
+
+      // Delete answers for these attempts
+      if (attemptIds.length > 0) {
+        const ansQ = new Parse.Query('QuizAnswer');
+        ansQ.equalTo('tenantId', req.tenantId);
+        ansQ.containedIn('attemptId', attemptIds);
+        const answers = await ansQ.find({ useMasterKey: true });
+        if (answers.length > 0) await Parse.Object.destroyAll(answers, { useMasterKey: true });
+      }
+
+      // Delete attempts
+      if (attempts.length > 0) await Parse.Object.destroyAll(attempts, { useMasterKey: true });
+
+      // Delete questions for this quiz
+      const qq = new Parse.Query('QuizQuestion');
+      qq.equalTo('tenantId', req.tenantId);
+      qq.equalTo('quizId', quizId);
+      const questions = await qq.find({ useMasterKey: true });
+      if (questions.length > 0) await Parse.Object.destroyAll(questions, { useMasterKey: true });
+
+      // Finally delete quiz
+      await quiz.destroy({ useMasterKey: true });
+      return res.json({ success: true, deleted: { answers: true, attempts: true, questions: true, quiz: true } });
     }
+
+    // No attempts: normal delete
     await quiz.destroy({ useMasterKey: true });
     res.json({ success: true });
   } catch (err) {
