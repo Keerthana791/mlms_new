@@ -15,6 +15,7 @@ const materialRoutes = require('./routes/material.routes');
 
 const quizQuestionRoutes = require('./routes/quizQuestion.routes');
 const quizAttemptRoutes = require('./routes/quizAttempt.routes');
+const notificationRoutes = require('./routes/notification.routes');
 
 // Initialize Express app
 const app = express();
@@ -37,6 +38,7 @@ app.use('/api/courses', materialRoutes);
 
 app.use('/api/quizzes', quizQuestionRoutes);
 app.use('/api/quizzes', quizAttemptRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 
 // Health check endpoint
@@ -80,12 +82,37 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Daily purge job for notifications
+async function purgeNotificationsDaily() {
+  try {
+    const now = new Date();
+    const expired = new Parse.Query('Notification');
+    expired.lessThan('expiresAt', now);
+
+    const oldQ = new Parse.Query('Notification');
+    oldQ.doesNotExist('expiresAt');
+    const cutoff = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    oldQ.lessThan('createdAt', cutoff);
+
+    const toDelete = await Parse.Query.or(expired, oldQ).find({ useMasterKey: true });
+    if (toDelete.length) {
+      await Parse.Object.destroyAll(toDelete, { useMasterKey: true });
+      console.log(`[purgeNotificationsDaily] Deleted ${toDelete.length} notifications`);
+    }
+  } catch (e) {
+    console.error('[purgeNotificationsDaily] Error:', e);
+  }
+}
+
 // Start server
 if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
+  // Run once at boot and then every 24 hours
+  purgeNotificationsDaily();                   // <-- add this
+  setInterval(purgeNotificationsDaily, 24 * 60 * 60 * 1000); // <-- add this
 }
 
 module.exports = app; // For testing

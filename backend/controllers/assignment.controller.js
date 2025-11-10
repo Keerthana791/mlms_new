@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
@@ -80,6 +81,30 @@ const createAssignment = async (req, res) => {
     assignment.set('uploadedBy', req.user.id);
 
     const saved = await assignment.save(null, { useMasterKey: true });
+
+    // Notify enrolled students about new assignment
+    try {
+      const enrQ = new Parse.Query('Enrollment');
+      enrQ.equalTo('tenantId', req.tenantId);
+      enrQ.equalTo('courseId', courseId);
+      enrQ.equalTo('status', 'active');
+      const enrollments = await enrQ.find({ useMasterKey: true });
+      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+      if (studentIds.length) {
+        const exp = assignment.get('dueDate') ? new Date(assignment.get('dueDate')) : null;
+        await notify({
+          tenantId: req.tenantId,
+          userIds: studentIds,
+          type: 'ASSIGNMENT_POSTED',
+          title: `New Assignment Posted: ${title}`,
+          message: title,
+          data: { assignmentId: saved.id, courseId },
+          expiresAt: exp,
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
     res.status(201).json(toJSON(saved));
   } catch (err) {
     console.error('Create assignment error:', err);

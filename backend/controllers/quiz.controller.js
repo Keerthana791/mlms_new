@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
@@ -182,6 +183,31 @@ const publishQuiz = async (req, res) => {
     }
     quiz.set('isPublished', true);
     const saved = await quiz.save(null, { useMasterKey: true });
+
+    // Notify enrolled students: QUIZ_PUBLISHED
+    try {
+      const enrQ = new Parse.Query('Enrollment');
+      enrQ.equalTo('tenantId', req.tenantId);
+      enrQ.equalTo('courseId', courseId);
+      enrQ.equalTo('status', 'active');
+      const enrollments = await enrQ.find({ useMasterKey: true });
+      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+      if (studentIds.length) {
+        const exp = saved.get('closeAt') ? new Date(saved.get('closeAt')) : null;
+        const titleText = saved.get('title') || 'Quiz';
+        await notify({
+          tenantId: req.tenantId,
+          userIds: studentIds,
+          type: 'QUIZ_PUBLISHED',
+          title: `New Quiz Published: ${titleText}`,
+          message: `New Quiz Published: ${titleText}`,
+          data: { quizId: saved.id, courseId, openAt: saved.get('openAt') || null, closeAt: saved.get('closeAt') || null },
+          expiresAt: exp,
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
     res.json(toJSON(saved));
   } catch (err) {
     console.error('Publish quiz error:', err);
@@ -198,6 +224,29 @@ const closeQuiz = async (req, res) => {
     // Allow closing (unpublish) even after attempts exist, to stop visibility
     quiz.set('isPublished', false);
     const saved = await quiz.save(null, { useMasterKey: true });
+
+    // Notify enrolled students: QUIZ_CLOSED
+    try {
+      const enrQ = new Parse.Query('Enrollment');
+      enrQ.equalTo('tenantId', req.tenantId);
+      enrQ.equalTo('courseId', courseId);
+      enrQ.equalTo('status', 'active');
+      const enrollments = await enrQ.find({ useMasterKey: true });
+      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+      if (studentIds.length) {
+        const titleText = saved.get('title') || 'Quiz';
+        await notify({
+          tenantId: req.tenantId,
+          userIds: studentIds,
+          type: 'QUIZ_CLOSED',
+          title: `Quiz Closed: ${titleText}`,
+          message: `Quiz Closed: ${titleText}`,
+          data: { quizId: saved.id, courseId, closeAt: saved.get('closeAt') || new Date() },
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
     res.json(toJSON(saved));
   } catch (err) {
     console.error('Close quiz error:', err);

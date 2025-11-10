@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
@@ -147,6 +148,20 @@ const gradeSubmission = async (req, res) => {
     if (feedback !== undefined) submission.set('feedback', feedback);
     submission.set('status', 'graded');
     const saved = await submission.save(null, { useMasterKey: true });
+
+    // Notify student: ASSIGNMENT_GRADED
+    try {
+      await notify({
+        tenantId: req.tenantId,
+        userIds: [submission.get('studentId')],
+        type: 'ASSIGNMENT_GRADED',
+        title: 'Assignment Graded',
+        message: `Assignment graded: ${submission.get('assignmentId')}`,
+        data: { assignmentId: submission.get('assignmentId'), submissionId: submission.id, score: numericGrade, total: 10 },
+        createdBy: req.user.id,
+      });
+    } catch (e) { /* swallow notification errors */ }
+
     res.json(toJSON(saved));
   } catch (err) {
     console.error('Grade submission error:', err);

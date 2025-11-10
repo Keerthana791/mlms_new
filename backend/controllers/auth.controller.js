@@ -1,5 +1,6 @@
 const Parse = require('../config/parse');
 const bcrypt = require('bcryptjs');
+const { notify } = require('../utils/notify');
 
 // Parse class names
 const TENANT_CLASS = 'Tenant';
@@ -81,6 +82,27 @@ const signup = async (req, res) => {
     user.set('tenantId', tenantId);
 
     await user.signUp();
+
+    // Notify Admins in this tenant: NEW_USER_SIGNUP
+    try {
+      const adminQ = new Parse.Query(Parse.User);
+      adminQ.equalTo('tenantId', tenantId);
+      adminQ.equalTo('role', 'Admin');
+      const admins = await adminQ.find({ useMasterKey: true });
+      const adminIds = (admins || []).map(a => a.id);
+      if (adminIds.length) {
+        await notify({
+          tenantId,
+          userIds: adminIds,
+          type: 'NEW_USER_SIGNUP',
+          title: `New User Signed Up: ${username}`,
+          message: `Role: ${role}`,
+          data: { newUserId: user.id, role },
+          createdBy: user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
     res.status(201).json({ message: 'User created successfully' });
   } catch (error) {
     console.error('Signup error:', error);

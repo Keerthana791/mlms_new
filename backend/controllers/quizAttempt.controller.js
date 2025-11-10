@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
@@ -192,8 +193,17 @@ const submitAttempt = async (req, res) => {
     const qMap = new Map();
     questions.forEach(q => qMap.set(q.id, q));
 
+    // Idempotency: delete existing answers for this attempt before saving new ones
+    const existingAnsQ = new Parse.Query('QuizAnswer');
+    existingAnsQ.equalTo('tenantId', req.tenantId);
+    existingAnsQ.equalTo('attemptId', attemptId);
+    const existingAnswers = await existingAnsQ.find({ useMasterKey: true });
+    if (existingAnswers.length) await Parse.Object.destroyAll(existingAnswers, { useMasterKey: true });
+
+    // Build new answers and save in batch
     let total = 0;
     const Answer = Parse.Object.extend('QuizAnswer');
+    const batch = [];
     for (const a of answers) {
       const q = qMap.get(a.questionId);
       if (!q) continue;
@@ -216,13 +226,30 @@ const submitAttempt = async (req, res) => {
       ans.set('questionId', q.id);
       ans.set('selectedOptionIndex', selected);
       ans.set('score', s);
-      await ans.save(null, { useMasterKey: true });
+      batch.push(ans);
     }
+    if (batch.length) await Parse.Object.saveAll(batch, { useMasterKey: true });
 
+    // Mark attempt as submitted
     attempt.set('score', total);
     attempt.set('status', 'submitted');
     attempt.set('submittedAt', new Date());
     const saved = await attempt.save(null, { useMasterKey: true });
+
+    // Notify student: QUIZ_GRADED
+    try {
+      const quizTitle = quiz.get('title') || 'Quiz';
+      await notify({
+        tenantId: req.tenantId,
+        userIds: [req.user.id],
+        type: 'QUIZ_GRADED',
+        title: `Quiz Graded: ${quizTitle}`,
+        message: `Your quiz was graded: ${quizTitle}`,
+        data: { quizId, attemptId: saved.id, score: total, totalMarks: Number(quiz.get('totalPoints') || 0) },
+        createdBy: req.user.id,
+      });
+    } catch (e) { /* swallow notification errors */ }
+
     const out = await sanitizeAttemptOut(saved, req.user.get('role'), quiz, req.user);
     res.json(out);
   } catch (err) {

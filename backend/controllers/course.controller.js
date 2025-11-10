@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 // Helpers
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
@@ -91,14 +92,34 @@ const updateCourse = async (req, res) => {
     if (title !== undefined) course.set('title', title);
     if (description !== undefined) course.set('description', description);
     // Prevent Teachers from reassigning the course to another teacher
+    let teacherChangedTo = null;
     if (teacherId !== undefined) {
       if (userRole === 'Teacher') {
         return res.status(403).json({ error: 'Teachers cannot reassign teacherId' });
+      }
+      if (course.get('teacherId') !== teacherId) {
+        teacherChangedTo = teacherId;
       }
       course.set('teacherId', teacherId);
     }
 
     const saved = await course.save(null, { useMasterKey: true });
+
+    // Notify new teacher if assignment changed
+    if (teacherChangedTo) {
+      try {
+        await notify({
+          tenantId: req.tenantId,
+          userIds: [teacherChangedTo],
+          type: 'TEACHER_ASSIGNED',
+          title: `You have been assigned to ${saved.get('title') || 'a course'}`,
+          message: 'You have been assigned as the teacher for this course',
+          data: { courseId: saved.id },
+          createdBy: req.user.id,
+        });
+      } catch (e) { /* swallow notification errors */ }
+    }
+
     res.json(toJSON(saved));
   } catch (err) {
     console.error('Update course error:', err);

@@ -1,4 +1,5 @@
 const Parse = require('../config/parse');
+const { notify } = require('../utils/notify');
 
 const toJSON = (obj) => ({ id: obj.id, ...obj.toJSON() });
 
@@ -35,6 +36,20 @@ const createSelfEnrollment = async (req, res) => {
     enr.set('studentId', req.user.id);
     enr.set('status', 'active');
     const saved = await enr.save(null, { useMasterKey: true });
+
+    // Notify student: COURSE_ENROLLMENT_APPROVED (self-enrollment is auto-approved)
+    try {
+      await notify({
+        tenantId: req.tenantId,
+        userIds: [req.user.id],
+        type: 'COURSE_ENROLLMENT_APPROVED',
+        title: 'Enrollment Approved',
+        message: 'Your course enrollment was approved',
+        data: { courseId },
+        createdBy: req.user.id,
+      });
+    } catch (e) { /* swallow notification errors */ }
+
     res.status(201).json(toJSON(saved));
   } catch (err) {
     console.error('Create self enrollment error:', err);
