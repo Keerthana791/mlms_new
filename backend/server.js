@@ -16,6 +16,7 @@ const materialRoutes = require('./routes/material.routes');
 const quizQuestionRoutes = require('./routes/quizQuestion.routes');
 const quizAttemptRoutes = require('./routes/quizAttempt.routes');
 const notificationRoutes = require('./routes/notification.routes');
+const analyticsRoutes = require('./routes/analytics.routes');
 
 // Initialize Express app
 const app = express();
@@ -39,7 +40,7 @@ app.use('/api/courses', materialRoutes);
 app.use('/api/quizzes', quizQuestionRoutes);
 app.use('/api/quizzes', quizAttemptRoutes);
 app.use('/api/notifications', notificationRoutes);
-
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
