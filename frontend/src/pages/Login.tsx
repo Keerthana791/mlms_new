@@ -32,9 +32,9 @@ export default function Login() {
   };
 
   return (
-  <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center">
+  <div className="min-h-screen bg-gray-50 text-gray-900 flex items-center justify-center">
     <div className="w-full max-w-md mx-auto px-6">
-      <div className="bg-white shadow-sm border rounded-xl p-6">
+      <div className="bg-white shadow-sm border rounded-xl p-6">    
         <h1 className="text-3xl font-bold mb-6">Login</h1>
         {error && <div className="mb-3 text-red-600 text-sm">{error}</div>}
 
@@ -68,3 +68,4 @@ export default function Login() {
   </div>
 );
 }
+
