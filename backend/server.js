@@ -12,6 +12,7 @@ const assignmentRoutes = require('./routes/assignment.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const enrollmentRoutes = require('./routes/enrollment.routes');
 const materialRoutes = require('./routes/material.routes');
+const userRoutes = require('./routes/user.routes');
 
 const quizQuestionRoutes = require('./routes/quizQuestion.routes');
 const quizAttemptRoutes = require('./routes/quizAttempt.routes');
@@ -36,6 +37,7 @@ app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/courses', materialRoutes);
+app.use('/api/users', userRoutes);
 
 app.use('/api/quizzes', quizQuestionRoutes);
 app.use('/api/quizzes', quizAttemptRoutes);

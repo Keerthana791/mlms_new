@@ -3,6 +3,7 @@ import Login from '../pages/Login';
 import SignupAdmin from '../pages/SignupAdmin';
 import Signup from '../pages/Signup';
 import Courses from '../pages/Courses';
+import CourseDetail from '../pages/CourseDetail';
 import { useAuthStore } from '../store/auth';
 import { useEffect } from 'react';
 
@@ -24,7 +25,8 @@ export const router = createBrowserRouter([
     element: <RequireAuth />,
     children: [
       { path: '/courses', element: <Courses /> },
-      // add more protected routes here
+      { path: '/courses/:id', element: <CourseDetail /> },
+      // later: other protected routes
     ],
   },
   { path: '*', element: <Navigate to="/login" replace /> },

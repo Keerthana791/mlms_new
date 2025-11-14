@@ -92,8 +92,71 @@ const deleteSelfEnrollment = async (req, res) => {
   }
 };
 
+const listCourseEnrollments = async (req, res) => {
+  try {
+    const courseId = req.params.id;
+if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+    // Load course and verify tenant
+    let course;
+    try {
+      course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+    } catch (e) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+    if (!course || course.get('tenantId') !== req.tenantId) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const role = req.user.get('role');
+    const isAdmin = role === 'Admin';
+    const isOwnerTeacher = role === 'Teacher' && course.get('teacherId') === req.user.id;
+    if (!isAdmin && !isOwnerTeacher) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // Find enrollments for this course
+    const enrQ = new Parse.Query('Enrollment');
+    enrQ.equalTo('tenantId', req.tenantId);
+    enrQ.equalTo('courseId', courseId);
+    enrQ.equalTo('status', 'active');
+    const enrollments = await enrQ.find({ useMasterKey: true });
+
+    const studentIds = Array.from(
+      new Set(enrollments.map((e) => e.get('studentId')).filter(Boolean))
+    );
+
+    let studentsById = {};
+    if (studentIds.length > 0) {
+      const userQ = new Parse.Query(Parse.User);
+      userQ.equalTo('tenantId', req.tenantId);
+      userQ.containedIn('objectId', studentIds);
+      const students = await userQ.find({ useMasterKey: true });
+      studentsById = Object.fromEntries(
+        students.map((u) => [
+          u.id,
+          { id: u.id, username: u.get('username'), role: u.get('role') },
+        ])
+      );
+    }
+
+    const result = enrollments.map((e) => ({
+      id: e.id,
+      courseId,
+      studentId: e.get('studentId'),
+      status: e.get('status'),
+      student: studentsById[e.get('studentId')] || null,
+    }));
+
+    res.json(result);
+  } catch (err) {
+    console.error('List course enrollments error:', err);
+    res.status(500).json({ error: 'Failed to list enrollments' });
+  }
+};
+
 module.exports = {
   createSelfEnrollment,
   listSelfEnrollments,
   deleteSelfEnrollment,
+  listCourseEnrollments,
 };
