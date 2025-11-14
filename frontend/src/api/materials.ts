@@ -6,7 +6,8 @@ export type Material = {
   title: string;
   description?: string;
   fileType: 'video' | 'pdf' | string;
-  url: string;
+  fileUrl?: string;   // <- add this
+  url?: string;       // optional, for future
   createdAt?: string;
 };
 
@@ -25,5 +26,11 @@ export async function uploadMaterial(
   form.append('file', input.file);
 
   const { data } = await api.post<Material>(`/api/courses/${courseId}/materials`, form);
+  return data;
+}
+export async function deleteMaterial(courseId: string, materialId: string) {
+  const { data } = await api.delete<{ success: boolean }>(
+    `/api/courses/${courseId}/materials/${materialId}`
+  );
   return data;
 }

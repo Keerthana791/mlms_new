@@ -1,6 +1,6 @@
 import { useAuthStore } from '@/store/auth';
 import { listCourseEnrollments, type CourseEnrollmentWithStudent } from '@/api/enrollments';
-import { listMaterials, uploadMaterial, type Material } from '@/api/materials';
+import { listMaterials, uploadMaterial, deleteMaterial, type Material } from '@/api/materials';
 import {
   Dialog,
   DialogContent,
@@ -123,6 +123,21 @@ export default function CourseDetail() {
     } finally {
       setUploading(false);
       setMaterialsLoading(false);
+    }
+  };
+    const handleDeleteMaterial = async (materialId: string) => {
+    if (!id) return;
+    if (!(role === 'Admin' || role === 'Teacher')) return;
+
+    try {
+      await deleteMaterial(id, materialId);
+      // Optimistically remove from local state
+      setMaterials((prev) => prev.filter((m) => m.id !== materialId));
+    } catch (err: any) {
+      // reuse materialsError for now
+      setMaterialsError(
+        err?.response?.data?.error || 'Failed to delete material'
+      );
     }
   };
     
@@ -301,19 +316,31 @@ export default function CourseDetail() {
                         return (
           <div className="space-y-4">
             {videos.map((m) => (
-              <div key={m.id} className="space-y-1">
-                <div className="text-sm font-medium">
-                  {m.title || 'Video'}
-                </div>
-               <video
-  controls
-  className="w-full max-w-2xl rounded border"
-  src={m.fileUrl || m.url || ''}
->
-                  Your browser does not support the video tag.
-                </video>
-              </div>
-            ))}
+  <div key={m.id} className="space-y-1">
+    <div className="flex items-center justify-between text-sm">
+      <span className="font-medium">
+        {m.title || 'Video'}
+      </span>
+      {(role === 'Admin' || role === 'Teacher') && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-red-600 border-red-200"
+          onClick={() => handleDeleteMaterial(m.id)}
+        >
+          Delete
+        </Button>
+      )}
+    </div>
+    <video
+      controls
+      className="w-full max-w-2xl rounded border"
+      src={m.fileUrl || m.url || ''}
+    >
+      Your browser does not support the video tag.
+    </video>
+  </div>
+))}
           </div>
         );
               })()
@@ -346,27 +373,39 @@ export default function CourseDetail() {
           <ul className="text-sm space-y-2">
             {pdfs.map((m) => (
               <li key={m.id} className="flex flex-col gap-1">
-                <span className="font-medium">
-                  {m.title || 'Notes'}
-                </span>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  <a
-  href={m.fileUrl || m.url || '#'}
-  target="_blank"
-  rel="noopener noreferrer"
-  className="text-blue-600 hover:underline"
->
-  View
-</a>
-<a
-  href={m.fileUrl || m.url || '#'}
-  download
-  className="text-blue-600 hover:underline"
->
-  Download
-</a>
-                </div>
-              </li>
+  <div className="flex items-center justify-between">
+    <span className="font-medium">
+      {m.title || 'Notes'}
+    </span>
+    {(role === 'Admin' || role === 'Teacher') && (
+      <Button
+        size="sm"
+        variant="outline"
+        className="text-red-600 border-red-200"
+        onClick={() => handleDeleteMaterial(m.id)}
+      >
+        Delete
+      </Button>
+    )}
+  </div>
+  <div className="flex flex-wrap gap-3 text-xs">
+    <a
+      href={m.fileUrl || m.url || '#'}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-blue-600 hover:underline"
+    >
+      View
+    </a>
+    <a
+      href={m.fileUrl || m.url || '#'}
+      download
+      className="text-blue-600 hover:underline"
+    >
+      Download
+    </a>
+  </div>
+</li>
             ))}
           </ul>
         );

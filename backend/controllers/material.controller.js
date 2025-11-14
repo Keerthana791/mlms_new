@@ -157,7 +157,38 @@ const listMaterials = async (req, res) => {
   }
 };
 
+// DELETE /api/courses/:courseId/materials/:materialId
+const deleteMaterial = async (req, res) => {
+  try {
+    const { courseId, materialId } = req.params;
+    if (!courseId || !materialId) {
+      return res.status(400).json({ error: 'courseId and materialId are required' });
+    }
+
+    const course = await loadCourseOr404(courseId, req.tenantId);
+    await ensureTeacherOwnsOrAdmin(course, req.user); // Admin or owning Teacher only
+
+    const q = new Parse.Query('CourseMaterial');
+    q.equalTo('tenantId', req.tenantId);
+    q.equalTo('courseId', courseId);
+    const mat = await q.get(materialId, { useMasterKey: true });
+
+    if (!mat) {
+      return res.status(404).json({ error: 'Material not found' });
+    }
+
+    await mat.destroy({ useMasterKey: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete material error:', err);
+    res.status(err.status || 500).json({
+      error: err.status ? err.message : 'Failed to delete material',
+    });
+  }
+};
+
 module.exports = {
   uploadMaterial,
   listMaterials,
+  deleteMaterial,
 };
