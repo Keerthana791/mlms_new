@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ export function AppLayout({ children }: Props) {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 flex">
       {/* Sidebar */}
+              {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r bg-white">
         <div className="h-14 flex items-center px-4 border-b font-semibold">
           MLMS
@@ -18,10 +20,19 @@ export function AppLayout({ children }: Props) {
           <div className="font-semibold text-xs text-gray-500 px-2 mb-1">
             Navigation
           </div>
-          <a href="/courses" className="flex items-center gap-2 px-2 py-2 rounded-md bg-gray-100 text-gray-900">
+          <Link
+            to="/courses"
+            className="flex items-center gap-2 px-2 py-2 rounded-md bg-gray-100 text-gray-900"
+          >
             <span>Courses</span>
-          </a>
-          {/* Add more links later: Assignments, Quizzes, Analytics */}
+          </Link>
+
+          <Link
+            to="/assignments"
+            className="flex items-center gap-2 px-2 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+          >
+            <span>Assignments</span>
+          </Link>
         </nav>
         <div className="border-t px-4 py-3 text-xs text-gray-500">
           Tenant <b>{tenantId}</b>

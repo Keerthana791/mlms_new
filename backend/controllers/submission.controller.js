@@ -79,7 +79,12 @@ const createSubmission = async (req, res) => {
 // Teacher/Admin: all within tenant; optional filter by assignmentId
 const listSubmissions = async (req, res) => {
   try {
-    const { assignmentId } = req.query;
+    // Read from query or params
+    let { assignmentId } = req.query || {};
+    if (!assignmentId && req.params && req.params.assignmentId) {
+      assignmentId = req.params.assignmentId;
+    }
+
     const query = new Parse.Query('Submission');
     query.equalTo('tenantId', req.tenantId);
     if (assignmentId) query.equalTo('assignmentId', assignmentId);
@@ -89,15 +94,59 @@ const listSubmissions = async (req, res) => {
       query.equalTo('studentId', req.user.id);
     }
     if (role === 'Teacher') {
-      // Teacher can only view submissions for assignments in courses they own
       if (!assignmentId) {
-        return res.status(400).json({ error: 'assignmentId is required for teachers' });
+        return res
+          .status(400)
+          .json({ error: 'assignmentId is required for teachers' });
       }
       await assertTeacherOwnsAssignment(assignmentId, req.user);
     }
 
-    const results = await query.find({ useMasterKey: true });
-    res.json(results.map(toJSON));
+        const results = await query.find({ useMasterKey: true });
+
+    // Collect studentIds to resolve names
+    const studentIds = Array.from(
+      new Set(
+        results
+          .map((s) => s.get('studentId'))
+          .filter(Boolean)
+      )
+    );
+
+    let namesById = {};
+    if (studentIds.length) {
+      const userQ = new Parse.Query('_User');
+      userQ.containedIn('objectId', studentIds);
+      const users = await userQ.find({ useMasterKey: true });
+
+      namesById = Object.fromEntries(
+        users.map((u) => [
+          u.id,
+          // pick a reasonable display name field
+          u.get('name') || u.get('username') || u.get('email'),
+        ])
+      );
+    }
+
+    const jsonResults = results.map((s) => {
+      const json = toJSON(s);
+      const studentId = s.get('studentId');
+      const file = s.get('file');
+
+      // attach studentName if we found one
+      if (studentId && namesById[studentId]) {
+        json.studentName = namesById[studentId];
+      }
+
+      // expose file URL as fileUrl for frontend
+      if (file && typeof file.url === 'function') {
+        json.fileUrl = file.url();
+      }
+
+      return json;
+    });
+
+    res.json(jsonResults);
   } catch (err) {
     console.error('List submissions error:', err);
     res.status(500).json({ error: 'Failed to list submissions' });

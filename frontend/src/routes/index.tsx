@@ -1,3 +1,6 @@
+import AssignmentSubmissions from '../pages/AssignmentSubmissions';
+import Assignments from '../pages/Assignments';
+import CourseAssignments from '../pages/CourseAssignments';
 import { createBrowserRouter, Navigate, Outlet } from 'react-router-dom';
 import Login from '../pages/Login';
 import SignupAdmin from '../pages/SignupAdmin';
@@ -26,6 +29,12 @@ export const router = createBrowserRouter([
     children: [
       { path: '/courses', element: <Courses /> },
       { path: '/courses/:id', element: <CourseDetail /> },
+       { path: '/assignments', element: <Assignments /> },
+    { path: '/assignments/:courseId', element: <CourseAssignments /> },
+    { 
+        path: '/assignments/:courseId/:assignmentId/submissions',
+        element: <AssignmentSubmissions />,
+      },
       // later: other protected routes
     ],
   },

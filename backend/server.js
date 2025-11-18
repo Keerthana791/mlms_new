@@ -31,12 +31,15 @@ app.use(morgan('dev'));
 
 // Routes
 app.use('/api/auth', authRoutes);
+
+
+app.use('/api/courses', assignmentRoutes);
+app.use('/api/courses', materialRoutes);
 app.use('/api/courses', quizRoutes);
 app.use('/api/courses', courseRoutes);
-app.use('/api/assignments', assignmentRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
-app.use('/api/courses', materialRoutes);
+
 app.use('/api/users', userRoutes);
 
 app.use('/api/quizzes', quizQuestionRoutes);
