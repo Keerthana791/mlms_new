@@ -33,6 +33,12 @@ export function AppLayout({ children }: Props) {
           >
             <span>Assignments</span>
           </Link>
+          <Link
+  to="/quizzes"
+  className="flex items-center gap-2 px-2 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+>
+  <span>Quizzes</span>
+</Link>
         </nav>
         <div className="border-t px-4 py-3 text-xs text-gray-500">
           Tenant <b>{tenantId}</b>

@@ -1,3 +1,7 @@
+import QuizAttemptPage from '../pages/QuizAttempt';
+import Quizzes from '../pages/Quizzes';
+import CourseQuizzes from '../pages/CourseQuizzes';
+import QuizQuestions from '../pages/QuizQuestions';
 import AssignmentSubmissions from '../pages/AssignmentSubmissions';
 import Assignments from '../pages/Assignments';
 import CourseAssignments from '../pages/CourseAssignments';
@@ -35,6 +39,10 @@ export const router = createBrowserRouter([
         path: '/assignments/:courseId/:assignmentId/submissions',
         element: <AssignmentSubmissions />,
       },
+      { path: '/quizzes', element: <Quizzes /> },
+      { path: '/quizzes/:courseId', element: <CourseQuizzes /> },
+      { path: '/quizzes/:courseId/:quizId/questions', element: <QuizQuestions /> },
+      { path: '/quizzes/:courseId/:quizId/attempt', element: <QuizAttemptPage /> },
       // later: other protected routes
     ],
   },

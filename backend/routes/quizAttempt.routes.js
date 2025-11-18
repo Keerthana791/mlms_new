@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { tenantMiddleware } = require('../middleware/tenant');
-const { startAttempt, submitAttempt, listAttempts, getAttempt, getActiveAttempt } = require('../controllers/quizAttempt.controller');
+const { startAttempt, submitAttempt, listAttempts, getAttempt, getActiveAttempt,} = require('../controllers/quizAttempt.controller');
 
 router.use(requireAuth);
 router.use(tenantMiddleware);
