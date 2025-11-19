@@ -23,7 +23,7 @@ export default function Login() {
         role: res.user.role,
         user: res.user,
       });
-      navigate('/courses', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (e: any) {
       setError(e?.response?.data?.error || 'Login failed');
     } finally {

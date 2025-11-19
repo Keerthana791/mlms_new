@@ -1,3 +1,4 @@
+import { Dashboard } from '@/pages/Dashboard';
 import NotificationsPage from '@/pages/Notifications';
 import QuizAttemptPage from '../pages/QuizAttempt';
 import Quizzes from '../pages/Quizzes';
@@ -29,15 +30,16 @@ export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/signup/admin', element: <SignupAdmin /> },
   { path: '/signup', element: <Signup /> },
-  
+
   {
     element: <RequireAuth />,
     children: [
+      { path: '/dashboard', element: <Dashboard /> }, 
       { path: '/courses', element: <Courses /> },
       { path: '/courses/:id', element: <CourseDetail /> },
-       { path: '/assignments', element: <Assignments /> },
-    { path: '/assignments/:courseId', element: <CourseAssignments /> },
-    { 
+      { path: '/assignments', element: <Assignments /> },
+      { path: '/assignments/:courseId', element: <CourseAssignments /> },
+      {
         path: '/assignments/:courseId/:assignmentId/submissions',
         element: <AssignmentSubmissions />,
       },

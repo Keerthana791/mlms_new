@@ -2,12 +2,14 @@ import { Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 
 type Props = { children: ReactNode };
 
 export function AppLayout({ children }: Props) {
   const { user, role, tenantId, logout } = useAuthStore();
+  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 flex">
@@ -22,11 +24,24 @@ export function AppLayout({ children }: Props) {
             Navigation
           </div>
           <Link
-            to="/courses"
-            className="flex items-center gap-2 px-2 py-2 rounded-md bg-gray-100 text-gray-900"
+            to="/dashboard"
+            className={`flex items-center gap-2 px-2 py-2 rounded-md ${location.pathname.startsWith('/dashboard')
+                ? 'bg-gray-100 text-gray-900'
+                : 'text-gray-700 hover:bg-gray-100'
+              }`}
           >
-            <span>Courses</span>
+            <span>Dashboard</span>
           </Link>
+          <Link
+  to="/courses"
+  className={`flex items-center gap-2 px-2 py-2 rounded-md ${
+    location.pathname.startsWith('/courses')
+      ? 'bg-gray-100 text-gray-900'
+      : 'text-gray-700 hover:bg-gray-100'
+  }`}
+>
+  <span>Courses</span>
+</Link>
 
           <Link
             to="/assignments"
@@ -43,8 +58,8 @@ export function AppLayout({ children }: Props) {
           <Link
             to="/notifications"
             className={`block px-3 py-2 text-sm ${location.pathname.startsWith('/notifications')
-                ? 'bg-gray-100 font-medium'
-                : 'text-gray-700 hover:bg-gray-50'
+              ? 'bg-gray-100 font-medium'
+              : 'text-gray-700 hover:bg-gray-50'
               }`}
           >
             Notifications
