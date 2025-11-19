@@ -226,6 +226,30 @@ async function cleanupNotifications(req, res) {
     res.status(500).json({ error: 'Failed to cleanup notifications' });
   }
 }
+// DELETE /api/notifications/:id
+async function deleteNotification(req, res) {
+  try {
+    const { id } = req.params;
+    const obj = await new Parse.Query('Notification').get(id, { useMasterKey: true });
+
+    const sameTenant = obj.get('tenantId') === req.tenantId;
+    const sameUser = obj.get('userId') === req.user.id;
+    const isAdmin = req.user.get('role') === 'Admin';
+
+    // Allow:
+    //  - Owner user in same tenant
+    //  - Or Admin in same tenant
+    if (!sameTenant || (!sameUser && !isAdmin)) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+
+    await obj.destroy({ useMasterKey: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete notification error:', err);
+    res.status(404).json({ error: 'Not found' });
+  }
+}
 
 module.exports = {
   listNotifications,
@@ -234,4 +258,5 @@ module.exports = {
   markAllRead,
   sendNotifications,
   cleanupNotifications,
+  deleteNotification,
 };

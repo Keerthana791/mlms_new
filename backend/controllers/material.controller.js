@@ -98,6 +98,7 @@ const uploadMaterial = async (req, res) => {
     // Create Parse.File from base64
     const file = new Parse.File(fileName, { base64: fileBase64 }, contentType);
     await file.save({ useMasterKey: true });
+    const courseTitle = course.get('title') || 'Course';
 
     const CourseMaterial = Parse.Object.extend('CourseMaterial');
     const material = new CourseMaterial();
@@ -110,26 +111,26 @@ const uploadMaterial = async (req, res) => {
 
     const saved = await material.save(null, { useMasterKey: true });
 
-    // Notify enrolled students about new material
-    try {
-      const enrQ = new Parse.Query('Enrollment');
-      enrQ.equalTo('tenantId', req.tenantId);
-      enrQ.equalTo('courseId', courseId);
-      enrQ.equalTo('status', 'active');
-      const enrollments = await enrQ.find({ useMasterKey: true });
-      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
-      if (studentIds.length) {
-        await notify({
-          tenantId: req.tenantId,
-          userIds: studentIds,
-          type: 'MATERIAL_UPLOADED',
-          title: `Material Uploaded: ${title}`,
-          message: `New material uploaded: ${title}`,
-          data: { materialId: saved.id, courseId, title },
-          createdBy: req.user.id,
-        });
-      }
-    } catch (e) { /* swallow notification errors */ }
+   // Notify enrolled students about new material
+try {
+  const enrQ = new Parse.Query('Enrollment');
+  enrQ.equalTo('tenantId', req.tenantId);
+  enrQ.equalTo('courseId', courseId);
+  enrQ.equalTo('status', 'active');
+  const enrollments = await enrQ.find({ useMasterKey: true });
+  const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+  if (studentIds.length) {
+    await notify({
+      tenantId: req.tenantId,
+      userIds: studentIds,
+      type: 'MATERIAL_UPLOADED',
+      title: `Material Uploaded: ${title}`,
+      message: `New material "${title}" uploaded in course "${courseTitle}"`,
+      data: { materialId: saved.id, courseId, courseTitle, title },
+      createdBy: req.user.id,
+    });
+  }
+} catch (e) { /* swallow notification errors */ }
 
     res.status(201).json(toJSON(saved));
   } catch (err) {

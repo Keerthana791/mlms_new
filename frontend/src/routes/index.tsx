@@ -1,3 +1,4 @@
+import NotificationsPage from '@/pages/Notifications';
 import QuizAttemptPage from '../pages/QuizAttempt';
 import Quizzes from '../pages/Quizzes';
 import CourseQuizzes from '../pages/CourseQuizzes';
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/signup/admin', element: <SignupAdmin /> },
   { path: '/signup', element: <Signup /> },
+  
   {
     element: <RequireAuth />,
     children: [
@@ -43,6 +45,7 @@ export const router = createBrowserRouter([
       { path: '/quizzes/:courseId', element: <CourseQuizzes /> },
       { path: '/quizzes/:courseId/:quizId/questions', element: <QuizQuestions /> },
       { path: '/quizzes/:courseId/:quizId/attempt', element: <QuizAttemptPage /> },
+      { path: '/notifications', element: <NotificationsPage /> },
       // later: other protected routes
     ],
   },

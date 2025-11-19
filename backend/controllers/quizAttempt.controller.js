@@ -237,18 +237,38 @@ const submitAttempt = async (req, res) => {
     const saved = await attempt.save(null, { useMasterKey: true });
 
     // Notify student: QUIZ_GRADED
-    try {
-      const quizTitle = quiz.get('title') || 'Quiz';
-      await notify({
-        tenantId: req.tenantId,
-        userIds: [req.user.id],
-        type: 'QUIZ_GRADED',
-        title: `Quiz Graded: ${quizTitle}`,
-        message: `Your quiz was graded: ${quizTitle}`,
-        data: { quizId, attemptId: saved.id, score: total, totalMarks: Number(quiz.get('totalPoints') || 0) },
-        createdBy: req.user.id,
-      });
-    } catch (e) { /* swallow notification errors */ }
+    // after computing total and saving attempt
+const quizTitle = quiz.get('title') || 'Quiz';
+const courseId = quiz.get('courseId');
+let courseTitle = 'Course';
+try {
+  const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+  if (course && course.get('tenantId') === req.tenantId) {
+    courseTitle = course.get('title') || 'Course';
+  }
+} catch (e) { /* ignore */ }
+
+const totalMarks = Number(quiz.get('totalPoints') || 0);
+const score = total; // your computed score
+
+try {
+  await notify({
+    tenantId: req.tenantId,
+    userIds: [req.user.id],
+    type: 'QUIZ_GRADED',
+    title: `Quiz Graded: ${quizTitle}`,
+    message: `Your quiz "${quizTitle}" in course "${courseTitle}" was graded: ${score} out of ${totalMarks}`,
+    data: {
+      quizId,
+      courseId,
+      courseTitle,
+      attemptId: saved.id,
+      score,
+      totalMarks,
+    },
+    createdBy: req.user.id,
+  });
+} catch (e) { /* swallow notification errors */ }
 
     const out = await sanitizeAttemptOut(saved, req.user.get('role'), quiz, req.user);
     res.json(out);

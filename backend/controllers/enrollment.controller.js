@@ -36,6 +36,11 @@ const createSelfEnrollment = async (req, res) => {
     enr.set('studentId', req.user.id);
     enr.set('status', 'active');
     const saved = await enr.save(null, { useMasterKey: true });
+    const studentName =
+      req.user.get('username') ||
+      req.user.get('name') ||
+      req.user.get('email') ||
+      'Student';
 
     // Notify student: COURSE_ENROLLMENT_APPROVED (self-enrollment is auto-approved)
     try {
@@ -44,10 +49,47 @@ const createSelfEnrollment = async (req, res) => {
         userIds: [req.user.id],
         type: 'COURSE_ENROLLMENT_APPROVED',
         title: 'Enrollment Approved',
-        message: 'Your course enrollment was approved',
-        data: { courseId },
+        message: `Your enrollment in "${course.get('title') || 'Course'}" was approved`,
+        data: { courseId, courseTitle: course.get('title') || 'Course', studentId: req.user.id, studentName },
         createdBy: req.user.id,
       });
+    } catch (e) { /* swallow notification errors */ }
+    // Notify course owner teacher (if set)
+    try {
+      const teacherId = course.get('teacherId');
+      if (teacherId) {
+        const courseTitle = course.get('title') || 'Course';
+        await notify({
+          tenantId: req.tenantId,
+          userIds: [teacherId],
+          type: 'COURSE_ENROLLMENT_NEW',
+          title: `New enrollment: ${courseTitle}`,
+          message: `${studentName} enrolled in your course "${courseTitle}"`,
+          data: { courseId, courseTitle, studentId: req.user.id, studentName },
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
+    // Notify  Admin in this tenant
+    try {
+      const adminQ = new Parse.Query('_User');
+      adminQ.equalTo('tenantId', req.tenantId);
+      adminQ.equalTo('role', 'Admin');
+      const admins = await adminQ.find({ useMasterKey: true });
+      const adminIds = admins.map((u) => u.id);
+      if (adminIds.length) {
+        const courseTitle = course.get('title') || 'Course';
+        await notify({
+          tenantId: req.tenantId,
+          userIds: adminIds,
+          type: 'COURSE_ENROLLMENT_NEW_ADMIN',
+          title: `New enrollment: ${courseTitle}`,
+          message: `${studentName} enrolled in your course "${courseTitle}"`,
+          data: { courseId, courseTitle, studentId: req.user.id, studentName },
+          createdBy: req.user.id,
+        });
+      }
     } catch (e) { /* swallow notification errors */ }
 
     res.status(201).json(toJSON(saved));
@@ -76,6 +118,22 @@ const deleteSelfEnrollment = async (req, res) => {
     const { courseId } = req.params;
     if (!courseId) return res.status(400).json({ error: 'courseId is required' });
 
+    let course;
+    try {
+      course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+      if (!course || course.get('tenantId') !== req.tenantId) {
+        return res.status(404).json({ error: 'Course not found' });
+      }
+    } catch (e) {
+      return res.status(404).json({ error: 'Course not found' });
+    }
+
+    const studentName =
+      req.user.get('username') ||
+      req.user.get('name') ||
+      req.user.get('email') ||
+      'Student';
+
     const q = new Parse.Query('Enrollment');
     q.equalTo('tenantId', req.tenantId);
     q.equalTo('courseId', courseId);
@@ -85,6 +143,54 @@ const deleteSelfEnrollment = async (req, res) => {
     if (!enr) return res.status(404).json({ error: 'Enrollment not found' });
 
     await enr.destroy({ useMasterKey: true });
+    const courseTitle = course.get('title') || 'Course';
+    // Notify student
+    try {
+      await notify({
+        tenantId: req.tenantId,
+        userIds: [req.user.id],
+        type: 'COURSE_UNENROLLED_SELF',
+        title: `Unenrolled: ${courseTitle}`,
+        message: `You (${studentName}) unenrolled from "${courseTitle}"`,
+        data: { courseId, courseTitle, studentId: req.user.id, studentName },
+        createdBy: req.user.id,
+      });
+    } catch (e) { /* swallow notification errors */ }
+
+    try {
+      const teacherId = course.get('teacherId');
+      if (teacherId) {
+        await notify({
+          tenantId: req.tenantId,
+          userIds: [teacherId],
+          type: 'COURSE_UNENROLLED_STUDENT',
+          title: `Student unenrolled: ${courseTitle}`,
+          message: `${studentName} unenrolled from your course "${courseTitle}"`,
+          data: { courseId, courseTitle, studentId: req.user.id, studentName },
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+    try {
+      const adminQ = new Parse.Query('_User');
+      adminQ.equalTo('tenantId', req.tenantId);
+      adminQ.equalTo('role', 'Admin');
+      const admins = await adminQ.find({ useMasterKey: true });
+      const adminIds = admins.map((u) => u.id);
+      if (adminIds.length) {
+        await notify({
+          tenantId: req.tenantId,
+          userIds: adminIds,
+          type: 'COURSE_UNENROLLED_STUDENT',
+          title: `Student unenrolled: ${courseTitle}`,
+          message: `${studentName} unenrolled from  course "${courseTitle}"`,
+          data: { courseId, courseTitle, studentId: req.user.id, studentName },
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
+
+
     res.json({ success: true });
   } catch (err) {
     console.error('Delete self enrollment error:', err);
@@ -95,7 +201,7 @@ const deleteSelfEnrollment = async (req, res) => {
 const listCourseEnrollments = async (req, res) => {
   try {
     const courseId = req.params.id;
-if (!courseId) return res.status(400).json({ error: 'courseId is required' });
+    if (!courseId) return res.status(400).json({ error: 'courseId is required' });
     // Load course and verify tenant
     let course;
     try {

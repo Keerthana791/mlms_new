@@ -12,5 +12,5 @@ router.put('/:id/read', ctrl.markRead);
 router.put('/read-all', ctrl.markAllRead);
 router.post('/', requireRole(['Admin', 'Teacher']), ctrl.sendNotifications);
 router.post('/cleanup', requireRole(['Admin']), ctrl.cleanupNotifications);
-
+router.delete('/:id', ctrl.deleteNotification);
 module.exports = router;

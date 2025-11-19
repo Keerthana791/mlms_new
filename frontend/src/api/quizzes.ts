@@ -56,6 +56,8 @@ export async function publishQuiz(courseId: string, quizId: string) {
     `/api/courses/${courseId}/quizzes/${quizId}/publish`,
     {}
   );
+  const courseTitle = course ? course.get('title') || 'Course' : 'Course';
+const titleText = saved.get('title') || 'Quiz';
   return data;
 }
 

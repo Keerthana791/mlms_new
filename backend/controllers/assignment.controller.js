@@ -81,29 +81,36 @@ const createAssignment = async (req, res) => {
     assignment.set('uploadedBy', req.user.id);
 
     const saved = await assignment.save(null, { useMasterKey: true });
+    let courseTitle = 'Course';
+    try {
+      const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+      if (course && course.get('tenantId') === req.tenantId) {
+        courseTitle = course.get('title') || 'Course';
+      }
+    } catch (e) { /* ignore */ }
 
     // Notify enrolled students about new assignment
-    try {
-      const enrQ = new Parse.Query('Enrollment');
-      enrQ.equalTo('tenantId', req.tenantId);
-      enrQ.equalTo('courseId', courseId);
-      enrQ.equalTo('status', 'active');
-      const enrollments = await enrQ.find({ useMasterKey: true });
-      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
-      if (studentIds.length) {
-        const exp = assignment.get('dueDate') ? new Date(assignment.get('dueDate')) : null;
-        await notify({
-          tenantId: req.tenantId,
-          userIds: studentIds,
-          type: 'ASSIGNMENT_POSTED',
-          title: `New Assignment Posted: ${title}`,
-          message: title,
-          data: { assignmentId: saved.id, courseId },
-          expiresAt: exp,
-          createdBy: req.user.id,
-        });
-      }
-    } catch (e) { /* swallow notification errors */ }
+try {
+  const enrQ = new Parse.Query('Enrollment');
+  enrQ.equalTo('tenantId', req.tenantId);
+  enrQ.equalTo('courseId', courseId);
+  enrQ.equalTo('status', 'active');
+  const enrollments = await enrQ.find({ useMasterKey: true });
+  const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+  if (studentIds.length) {
+    const exp = assignment.get('dueDate') ? new Date(assignment.get('dueDate')) : null;
+    await notify({
+      tenantId: req.tenantId,
+      userIds: studentIds,
+      type: 'ASSIGNMENT_POSTED',
+      title: `New Assignment Posted: ${title}`,
+      message: `New assignment "${title}" posted in course "${courseTitle}"`,
+      data: { assignmentId: saved.id, courseId, courseTitle },
+      expiresAt: exp,
+      createdBy: req.user.id,
+    });
+  }
+} catch (e) { /* swallow notification errors */ }
 
     res.status(201).json(toJSON(saved));
   } catch (err) {
@@ -193,7 +200,7 @@ const deleteAssignment = async (req, res) => {
     const assignment = await new Parse.Query('Assignment').get(id, { useMasterKey: true });
     if (assignment.get('tenantId') !== req.tenantId) return res.status(403).json({ error: 'Forbidden' });
 
-    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user,req.tenantId);
+    await assertTeacherOwnsCourse(assignment.get('courseId'), req.user, req.tenantId);
 
     await assignment.destroy({ useMasterKey: true });
     res.json({ success: true });

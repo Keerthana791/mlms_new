@@ -1,7 +1,8 @@
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { ReactNode } from 'react';
 import { useAuthStore } from '@/store/auth';
 import { Button } from '@/components/ui/button';
+
 
 type Props = { children: ReactNode };
 
@@ -11,7 +12,7 @@ export function AppLayout({ children }: Props) {
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900 flex">
       {/* Sidebar */}
-              {/* Sidebar */}
+      {/* Sidebar */}
       <aside className="hidden md:flex w-64 flex-col border-r bg-white">
         <div className="h-14 flex items-center px-4 border-b font-semibold">
           MLMS
@@ -34,11 +35,20 @@ export function AppLayout({ children }: Props) {
             <span>Assignments</span>
           </Link>
           <Link
-  to="/quizzes"
-  className="flex items-center gap-2 px-2 py-2 rounded-md text-gray-700 hover:bg-gray-100"
->
-  <span>Quizzes</span>
-</Link>
+            to="/quizzes"
+            className="flex items-center gap-2 px-2 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+          >
+            <span>Quizzes</span>
+          </Link>
+          <Link
+            to="/notifications"
+            className={`block px-3 py-2 text-sm ${location.pathname.startsWith('/notifications')
+                ? 'bg-gray-100 font-medium'
+                : 'text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Notifications
+          </Link>
         </nav>
         <div className="border-t px-4 py-3 text-xs text-gray-500">
           Tenant <b>{tenantId}</b>
