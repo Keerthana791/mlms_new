@@ -11,6 +11,8 @@ const {
   studentDashboardSummary,
   courseQuizAnalytics,
   courseAssignmentAnalytics,
+  studentCourseQuizAnalytics,
+  studentCourseAssignmentAnalytics,
 } = require('../controllers/analytics.controller');
 router.use(requireAuth, tenantMiddleware);
 
@@ -37,6 +39,17 @@ router.get(
   '/courses/:courseId/assignments/detail',
   requireRole(['Admin', 'Teacher']),
   courseAssignmentAnalytics
+);
+router.get(
+  '/me/courses/:courseId/quizzes',
+  requireRole(['Student']),
+  studentCourseQuizAnalytics
+);
+
+router.get(
+  '/me/courses/:courseId/assignments',
+  requireRole(['Student']),
+  studentCourseAssignmentAnalytics
 );
 
 module.exports = router;

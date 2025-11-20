@@ -1,3 +1,5 @@
+import StudentCourseQuizAnalytics from '../pages/StudentCourseQuizAnalytics';
+import StudentCourseAssignmentAnalytics from '../pages/StudentCourseAssignmentAnalytics';
 import CourseQuizAnalytics from '../pages/CourseQuizAnalytics';
 import CourseAssignmentAnalytics from '../pages/CourseAssignmentAnalytics';
 import { Dashboard } from '@/pages/Dashboard';
@@ -36,7 +38,7 @@ export const router = createBrowserRouter([
   {
     element: <RequireAuth />,
     children: [
-      { path: '/dashboard', element: <Dashboard /> }, 
+      { path: '/dashboard', element: <Dashboard /> },
       { path: '/courses', element: <Courses /> },
       { path: '/courses/:id', element: <CourseDetail /> },
       { path: '/assignments', element: <Assignments /> },
@@ -51,7 +53,9 @@ export const router = createBrowserRouter([
       { path: '/quizzes/:courseId/:quizId/attempt', element: <QuizAttemptPage /> },
       { path: '/notifications', element: <NotificationsPage /> },
       { path: '/analytics/courses/:courseId/quizzes', element: <CourseQuizAnalytics /> },
-{ path: '/analytics/courses/:courseId/assignments', element: <CourseAssignmentAnalytics /> },
+      { path: '/analytics/courses/:courseId/assignments', element: <CourseAssignmentAnalytics /> },
+      { path: '/me/analytics/courses/:courseId/quizzes', element: <StudentCourseQuizAnalytics /> },
+      { path: '/me/analytics/courses/:courseId/assignments', element: <StudentCourseAssignmentAnalytics /> },
       // later: other protected routes
     ],
   },

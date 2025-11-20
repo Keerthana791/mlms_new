@@ -345,6 +345,28 @@ export function Dashboard() {
                                                         <div className="text-xs text-gray-500">{videoText}</div>
                                                     )}
                                                 </div>
+                                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                                    <Link
+                                                        to={`/me/analytics/courses/${c.courseId}/quizzes`}
+                                                        className="px-2 py-1 rounded-full border bg-white text-blue-600 hover:bg-blue-50"
+                                                    >
+                                                        View quiz analytics
+                                                    </Link>
+                                                </div>
+                                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                                                    <Link
+                                                        to={`/me/analytics/courses/${c.courseId}/quizzes`}
+                                                        className="px-2 py-1 rounded-full border bg-white text-blue-600 hover:bg-blue-50"
+                                                    >
+                                                        View quiz analytics
+                                                    </Link>
+                                                    <Link
+                                                        to={`/me/analytics/courses/${c.courseId}/assignments`}
+                                                        className="px-2 py-1 rounded-full border bg-white text-blue-600 hover:bg-blue-50"
+                                                    >
+                                                        View assignment analytics
+                                                    </Link>
+                                                </div>
                                             </div>
                                         );
                                     })}

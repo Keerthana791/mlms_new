@@ -32,3 +32,39 @@ export async function getCourseAssignmentAnalytics(courseId: string) {
     }[];
   };
 }
+
+
+export async function markMaterialComplete(materialId: string) {
+  await api.post('/api/analytics/events', {
+    event: 'material.complete',
+    entityType: 'CourseMaterial',
+    entityId: materialId,
+  });
+}
+export async function getStudentCourseQuizAnalytics(courseId: string) {
+  const { data } = await api.get(`/api/analytics/me/courses/${courseId}/quizzes`);
+  return data as {
+    courseId: string;
+    courseTitle: string;
+    quizzes: {
+      id: string;
+      title: string;
+      totalPoints: number;
+      lastScore: number | null;
+      history: { score: number; createdAt: string }[];
+    }[];
+  };
+}
+export async function getStudentCourseAssignmentAnalytics(courseId: string) {
+  const { data } = await api.get(`/api/analytics/me/courses/${courseId}/assignments`);
+  return data as {
+    courseId: string;
+    courseTitle: string;
+    assignments: {
+      id: string;
+      title: string;
+      lastGrade: number | null;
+      history: { grade: number; createdAt: string }[];
+    }[];
+  };
+}

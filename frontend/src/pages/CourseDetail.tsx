@@ -1,3 +1,4 @@
+import { markMaterialComplete } from '@/api/analytics';
 import { useAuthStore } from '@/store/auth';
 import { listCourseEnrollments, type CourseEnrollmentWithStudent } from '@/api/enrollments';
 import { listMaterials, uploadMaterial, deleteMaterial, type Material } from '@/api/materials';
@@ -55,7 +56,7 @@ export default function CourseDetail() {
       .finally(() => setLoading(false));
   }, [id]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!id) return;
     if (role !== 'Admin' && role !== 'Teacher') return;
 
@@ -72,7 +73,7 @@ export default function CourseDetail() {
       .finally(() => setEnrollmentsLoading(false));
   }, [id, role]);
 
-    useEffect(() => {
+  useEffect(() => {
     if (!id) return;
 
     setMaterialsLoading(true);
@@ -88,7 +89,7 @@ export default function CourseDetail() {
       .finally(() => setMaterialsLoading(false));
   }, [id]);
 
-    const handleUploadMaterial = async (e: React.FormEvent) => {
+  const handleUploadMaterial = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
     if (!uploadFile) {
@@ -125,7 +126,7 @@ export default function CourseDetail() {
       setMaterialsLoading(false);
     }
   };
-    const handleDeleteMaterial = async (materialId: string) => {
+  const handleDeleteMaterial = async (materialId: string) => {
     if (!id) return;
     if (!(role === 'Admin' || role === 'Teacher')) return;
 
@@ -140,25 +141,32 @@ export default function CourseDetail() {
       );
     }
   };
-    
+  const handleVideoEnded = async (materialId: string) => {
+    try {
+      await markMaterialComplete(materialId);
+    } catch (e) {
+      console.error('Failed to mark video complete', e);
+    }
+  };
+
 
   return (
     <AppLayout>
       <div className="max-w-5xl mx-auto space-y-4">
         <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-semibold tracking-tight">
-              {course?.title || 'Course'}
-            </h1>
-            {course?.description && (
-              <p className="text-sm text-gray-500 mt-1">
-                {course.description}
-              </p>
-            )}
-          </div>
-            <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {course?.title || 'Course'}
+          </h1>
+          {course?.description && (
+            <p className="text-sm text-gray-500 mt-1">
+              {course.description}
+            </p>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
           {(role === 'Admin' || role === 'Teacher') && (
             <Dialog open={uploadOpen} onOpenChange={setUploadOpen}>
-               <DialogTrigger asChild>
+              <DialogTrigger asChild>
                 <Button size="sm">
                   Upload material
                 </Button>
@@ -256,43 +264,43 @@ export default function CourseDetail() {
         </Card>
 
 
-           {(role === 'Admin' || role === 'Teacher') && (
+        {(role === 'Admin' || role === 'Teacher') && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Enrolled students</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {enrollmentsLoading && (
+                <div className="text-sm text-gray-500">Loading…</div>
+              )}
+              {enrollmentsError && (
+                <div className="text-sm text-red-600">{enrollmentsError}</div>
+              )}
+              {!enrollmentsLoading &&
+                !enrollmentsError &&
+                enrollments.length === 0 && (
+                  <div className="text-sm text-gray-500">
+                    No students enrolled yet.
+                  </div>
+                )}
+              {!enrollmentsLoading &&
+                !enrollmentsError &&
+                enrollments.length > 0 && (
+                  <ul className="text-sm space-y-1">
+                    {enrollments.map((e) => (
+                      <li key={e.id}>
+                        {e.student?.username || e.studentId}{' '}
+                        <span className="text-xs text-gray-500">
+                          ({e.student?.role || 'Student'})
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+            </CardContent>
+          </Card>
+        )}
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Enrolled students</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {enrollmentsLoading && (
-              <div className="text-sm text-gray-500">Loading…</div>
-            )}
-            {enrollmentsError && (
-              <div className="text-sm text-red-600">{enrollmentsError}</div>
-            )}
-            {!enrollmentsLoading &&
-              !enrollmentsError &&
-              enrollments.length === 0 && (
-                <div className="text-sm text-gray-500">
-                  No students enrolled yet.
-                </div>
-              )}
-            {!enrollmentsLoading &&
-              !enrollmentsError &&
-              enrollments.length > 0 && (
-                <ul className="text-sm space-y-1">
-                  {enrollments.map((e) => (
-                    <li key={e.id}>
-                      {e.student?.username || e.studentId}{' '}
-                      <span className="text-xs text-gray-500">
-                        ({e.student?.role || 'Student'})
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-          </CardContent>
-        </Card>
-      )}
-              <Card>
           <CardHeader>
             <CardTitle className="text-base">Lecture videos</CardTitle>
           </CardHeader>
@@ -313,36 +321,37 @@ export default function CourseDetail() {
                     </div>
                   );
                 }
-                        return (
-          <div className="space-y-4">
-            {videos.map((m) => (
-  <div key={m.id} className="space-y-1">
-    <div className="flex items-center justify-between text-sm">
-      <span className="font-medium">
-        {m.title || 'Video'}
-      </span>
-      {(role === 'Admin' || role === 'Teacher') && (
-        <Button
-          size="sm"
-          variant="outline"
-          className="text-red-600 border-red-200"
-          onClick={() => handleDeleteMaterial(m.id)}
-        >
-          Delete
-        </Button>
-      )}
-    </div>
-    <video
-      controls
-      className="w-full max-w-2xl rounded border"
-      src={m.fileUrl || m.url || ''}
-    >
-      Your browser does not support the video tag.
-    </video>
-  </div>
-))}
-          </div>
-        );
+                return (
+                  <div className="space-y-4">
+                    {videos.map((m) => (
+                      <div key={m.id} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium">
+                            {m.title || 'Video'}
+                          </span>
+                          {(role === 'Admin' || role === 'Teacher') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-200"
+                              onClick={() => handleDeleteMaterial(m.id)}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                        <video
+                          controls
+                          className="w-full max-w-2xl rounded border"
+                          src={m.fileUrl || m.url || ''}
+                          onEnded={() => handleVideoEnded(m.id)}
+                        >
+                          Your browser does not support the video tag.
+                        </video>
+                      </div>
+                    ))}
+                  </div>
+                );
               })()
             )}
           </CardContent>
@@ -369,46 +378,46 @@ export default function CourseDetail() {
                     </div>
                   );
                 }
-                        return (
-          <ul className="text-sm space-y-2">
-            {pdfs.map((m) => (
-              <li key={m.id} className="flex flex-col gap-1">
-  <div className="flex items-center justify-between">
-    <span className="font-medium">
-      {m.title || 'Notes'}
-    </span>
-    {(role === 'Admin' || role === 'Teacher') && (
-      <Button
-        size="sm"
-        variant="outline"
-        className="text-red-600 border-red-200"
-        onClick={() => handleDeleteMaterial(m.id)}
-      >
-        Delete
-      </Button>
-    )}
-  </div>
-  <div className="flex flex-wrap gap-3 text-xs">
-    <a
-      href={m.fileUrl || m.url || '#'}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="text-blue-600 hover:underline"
-    >
-      View
-    </a>
-    <a
-      href={m.fileUrl || m.url || '#'}
-      download
-      className="text-blue-600 hover:underline"
-    >
-      Download
-    </a>
-  </div>
-</li>
-            ))}
-          </ul>
-        );
+                return (
+                  <ul className="text-sm space-y-2">
+                    {pdfs.map((m) => (
+                      <li key={m.id} className="flex flex-col gap-1">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">
+                            {m.title || 'Notes'}
+                          </span>
+                          {(role === 'Admin' || role === 'Teacher') && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-200"
+                              onClick={() => handleDeleteMaterial(m.id)}
+                            >
+                              Delete
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-3 text-xs">
+                          <a
+                            href={m.fileUrl || m.url || '#'}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline"
+                          >
+                            View
+                          </a>
+                          <a
+                            href={m.fileUrl || m.url || '#'}
+                            download
+                            className="text-blue-600 hover:underline"
+                          >
+                            Download
+                          </a>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                );
               })()
             )}
           </CardContent>
