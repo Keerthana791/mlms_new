@@ -6,6 +6,7 @@ import {
     getTeacherDashboardSummary,
     getStudentDashboardSummary,
 } from '@/api/dashboard';
+import { Link } from 'react-router-dom';
 
 type AdminSummary = {
     users: {
@@ -217,10 +218,20 @@ export function Dashboard() {
                                                     <td className="px-3 py-2">{c.title || c.courseId}</td>
                                                     <td className="px-3 py-2">{c.enrolled}</td>
                                                     <td className="px-3 py-2">
-                                                        {c.quizAvgScore.toFixed(1)}
+                                                        <Link
+                                                            to={`/analytics/courses/${c.courseId}/quizzes`}
+                                                            className="text-blue-600 hover:underline text-xs"
+                                                        >
+                                                            View quiz analytics
+                                                        </Link>
                                                     </td>
                                                     <td className="px-3 py-2">
-                                                        {c.assignmentAvgGrade.toFixed(1)}
+                                                        <Link
+                                                            to={`/analytics/courses/${c.courseId}/assignments`}
+                                                            className="text-blue-600 hover:underline text-xs"
+                                                        >
+                                                            View assignment analytics
+                                                        </Link>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -242,16 +253,21 @@ export function Dashboard() {
                                             className="rounded-md border bg-white px-3 py-2 flex justify-between gap-4"
                                         >
                                             <div className="flex-1">
-                                                <div className="font-medium">Submission {s.id}</div>
+                                                <div className="font-medium text-sm">
+                                                    {s.student?.username || s.student?.id || 'Unknown student'}
+                                                </div>
                                                 <div className="text-xs text-gray-500">
-                                                    Assignment: {s.assignmentId ?? 'N/A'}
+                                                    Course: {s.course?.title || s.course?.id || 'Unknown course'}
+                                                </div>
+                                                <div className="text-xs text-gray-500">
+                                                    Assignment: {s.assignment?.title || s.assignment?.id}
+                                                    {' '}
+                                                    ({s.assignment?.id})
                                                 </div>
                                             </div>
                                             <div className="text-right text-xs text-gray-500">
                                                 {s.createdAt && (
-                                                    <span>
-                                                        {new Date(s.createdAt).toLocaleString()}
-                                                    </span>
+                                                    <span>{new Date(s.createdAt).toLocaleString()}</span>
                                                 )}
                                             </div>
                                         </li>

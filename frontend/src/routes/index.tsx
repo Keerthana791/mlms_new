@@ -1,3 +1,5 @@
+import CourseQuizAnalytics from '../pages/CourseQuizAnalytics';
+import CourseAssignmentAnalytics from '../pages/CourseAssignmentAnalytics';
 import { Dashboard } from '@/pages/Dashboard';
 import NotificationsPage from '@/pages/Notifications';
 import QuizAttemptPage from '../pages/QuizAttempt';
@@ -48,6 +50,8 @@ export const router = createBrowserRouter([
       { path: '/quizzes/:courseId/:quizId/questions', element: <QuizQuestions /> },
       { path: '/quizzes/:courseId/:quizId/attempt', element: <QuizAttemptPage /> },
       { path: '/notifications', element: <NotificationsPage /> },
+      { path: '/analytics/courses/:courseId/quizzes', element: <CourseQuizAnalytics /> },
+{ path: '/analytics/courses/:courseId/assignments', element: <CourseAssignmentAnalytics /> },
       // later: other protected routes
     ],
   },

@@ -2,8 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { tenantMiddleware } = require('../middleware/tenant');
-const { postEvent, getOverview, postRollup, adminDashboardSummary, teacherDashboardSummary, studentDashboardSummary } = require('../controllers/analytics.controller');
-
+const {
+  postEvent,
+  getOverview,
+  postRollup,
+  adminDashboardSummary,
+  teacherDashboardSummary,
+  studentDashboardSummary,
+  courseQuizAnalytics,
+  courseAssignmentAnalytics,
+} = require('../controllers/analytics.controller');
 router.use(requireAuth, tenantMiddleware);
 
 // Any authenticated user can emit events
@@ -19,5 +27,16 @@ router.get('/overview', requireRole(['Admin', 'Teacher']), getOverview);
 router.get('/admin/summary', requireRole(['Admin']), adminDashboardSummary);
 router.get('/teacher/summary', requireRole(['Teacher']), teacherDashboardSummary);
 router.get('/me/summary', requireRole(['Student']), studentDashboardSummary);
+router.get(
+  '/courses/:courseId/quizzes/detail',
+  requireRole(['Admin', 'Teacher']),
+  courseQuizAnalytics
+);
+
+router.get(
+  '/courses/:courseId/assignments/detail',
+  requireRole(['Admin', 'Teacher']),
+  courseAssignmentAnalytics
+);
 
 module.exports = router;

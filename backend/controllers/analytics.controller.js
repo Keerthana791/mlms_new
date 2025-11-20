@@ -252,17 +252,324 @@ async function teacherDashboardSummary(req, res) {
     }));
 
     // Optional: recent submissions (latest 5)
-    const recentSubQ = new Parse.Query('Submission');
-    recentSubQ.equalTo('tenantId', tenantId);
-    recentSubQ.containedIn('assignmentId', assignmentIds);
-    recentSubQ.descending('createdAt');
-    recentSubQ.limit(5);
-    const recentSubs = await recentSubQ.find({ useMasterKey: true });
+    // recent submissions (latest 5)
+const recentSubQ = new Parse.Query('Submission');
+recentSubQ.equalTo('tenantId', tenantId);
+recentSubQ.containedIn('assignmentId', assignmentIds);
+recentSubQ.descending('createdAt');
+recentSubQ.limit(5);
+const recentSubs = await recentSubQ.find({ useMasterKey: true });
 
-    res.json({ myCourses: myCourses.length, courseSummary, recentSubmissions: recentSubs.map(s => ({ id: s.id, ...s.toJSON() })) });
+// Load related users and assignments
+const recentAssignmentIds = Array.from(
+  new Set(recentSubs.map(s => s.get('assignmentId')).filter(Boolean))
+);
+const recentStudentIds = Array.from(
+  new Set(recentSubs.map(s => s.get('studentId')).filter(Boolean))
+);
+
+const assignmentsById = new Map();
+if (recentAssignmentIds.length) {
+  const aQ = new Parse.Query('Assignment');
+  aQ.equalTo('tenantId', tenantId);
+  aQ.containedIn('objectId', recentAssignmentIds);
+  aQ.limit(1000);
+  const asgs = await aQ.find({ useMasterKey: true });
+  asgs.forEach(a => assignmentsById.set(a.id, a));
+}
+
+const usersById = new Map();
+if (recentStudentIds.length) {
+  const uQ = new Parse.Query('_User');
+  uQ.equalTo('tenantId', tenantId);
+  uQ.containedIn('objectId', recentStudentIds);
+  uQ.limit(1000);
+  const users = await uQ.find({ useMasterKey: true });
+  users.forEach(u => usersById.set(u.id, u));
+}
+
+// optional: map courseId -> courseTitle for quick lookup
+const coursesById = new Map(courses.map(c => [c.id, c.get('title') || '']));
+
+const recentSubDtos = recentSubs.map(s => {
+  const assignmentId = s.get('assignmentId');
+  const studentId = s.get('studentId');
+  const assignment = assignmentsById.get(assignmentId);
+  const student = usersById.get(studentId);
+
+  const courseId = assignment ? assignment.get('courseId') : null;
+  const courseTitle = courseId ? (coursesById.get(courseId) || courseId) : null;
+
+  return {
+    id: s.id,
+    createdAt: s.get('createdAt'),
+    course: courseId
+      ? { id: courseId, title: courseTitle }
+      : null,
+    assignment: assignment
+      ? { id: assignment.id, title: assignment.get('title') || assignment.id }
+      : { id: assignmentId, title: assignmentId },
+    student: student
+      ? { id: student.id, username: student.get('username') }
+      : { id: studentId, username: null },
+  };
+});
+
+res.json({
+  myCourses: myCourses.length,
+  courseSummary,
+  recentSubmissions: recentSubDtos,
+});
   } catch (err) {
     console.error('teacherDashboardSummary error:', err);
     res.status(500).json({ error: 'Failed to fetch teacher dashboard summary' });
+  }
+}
+
+
+async function courseQuizAnalytics(req, res) {
+  try {
+    const tenantId = req.tenantId;
+    const user = req.user;
+    const role = user.get('role');
+    const { courseId } = req.params;
+
+    const courseQ = new Parse.Query('Course');
+    courseQ.equalTo('tenantId', tenantId);
+    const course = await courseQ.get(courseId, { useMasterKey: true });
+    const courseTitle = course.get('title') || '';
+
+    if (role === 'Teacher' && course.get('teacherId') !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const quizQ = new Parse.Query('Quiz');
+    quizQ.equalTo('tenantId', tenantId);
+    quizQ.equalTo('courseId', courseId);
+    quizQ.limit(1000);
+    const quizzes = await quizQ.find({ useMasterKey: true });
+    if (!quizzes.length) return res.json({ courseId, quizzes: [] });
+
+    const quizById = new Map(quizzes.map(q => [q.id, q]));
+    const quizIds = quizzes.map(q => q.id);
+
+    const qaQ = new Parse.Query('QuizAttempt');
+    qaQ.equalTo('tenantId', tenantId);
+    qaQ.equalTo('status', 'submitted');
+    qaQ.containedIn('quizId', quizIds);
+    qaQ.limit(10000);
+    const attempts = await qaQ.find({ useMasterKey: true });
+
+    if (!attempts.length) {
+      return res.json({
+        courseId,
+        quizzes: quizzes.map(q => ({
+          id: q.id,
+          title: q.get('title') || '',
+          avgScore: 0,
+          attemptCount: 0,
+          topAttempt: null,
+          bottomAttempt: null,
+        })),
+      });
+    }
+
+    const studentIds = Array.from(
+      new Set(attempts.map(a => a.get('studentId')).filter(Boolean))
+    );
+    const usersById = new Map();
+    if (studentIds.length) {
+      const uQ = new Parse.Query('_User');
+      uQ.equalTo('tenantId', tenantId);
+      uQ.containedIn('objectId', studentIds);
+      uQ.limit(10000);
+      const users = await uQ.find({ useMasterKey: true });
+      users.forEach(u => usersById.set(u.id, u));
+    }
+
+    const statsByQuiz = new Map();
+    for (const a of attempts) {
+      const qid = a.get('quizId');
+      if (!quizById.has(qid)) continue;
+      const score = Number(a.get('score') || 0);
+      let s = statsByQuiz.get(qid);
+      if (!s) {
+        s = { sum: 0, count: 0, max: null, min: null };
+        statsByQuiz.set(qid, s);
+      }
+      s.sum += score;
+      s.count += 1;
+      const studentId = a.get('studentId');
+      const userObj = usersById.get(studentId);
+      const student = userObj
+        ? { id: userObj.id, username: userObj.get('username') }
+        : { id: studentId, username: null };
+
+      if (!s.max || score > s.max.score) {
+        s.max = { score, student };
+      }
+      if (!s.min || score < s.min.score) {
+        s.min = { score, student };
+      }
+    }
+
+    const result = quizzes.map(q => {
+      const qid = q.id;
+      const title = q.get('title') || '';
+      const totalPoints = Number(q.get('totalPoints') || 0);
+      const s = statsByQuiz.get(qid);
+      if (!s) {
+        return {
+          id: qid,
+          title,
+          totalPoints,
+          avgScore: 0,
+          attemptCount: 0,
+          topAttempt: null,
+          bottomAttempt: null,
+        };
+      }
+      return {
+        id: qid,
+        title,
+        totalPoints,
+        avgScore: s.sum / s.count,
+        attemptCount: s.count,
+        topAttempt: s.max,
+        bottomAttempt: s.min,
+      };
+    });
+
+    res.json({ courseId,courseTitle, quizzes: result });
+  } catch (err) {
+    console.error('courseQuizAnalytics error:', err);
+    res.status(500).json({ error: 'Failed to fetch quiz analytics' });
+  }
+}
+async function courseAssignmentAnalytics(req, res) {
+  try {
+    const tenantId = req.tenantId;
+    const user = req.user;
+    const role = user.get('role');
+    const { courseId } = req.params;
+
+    // 1) Check course exists and belongs to tenant
+    const courseQ = new Parse.Query('Course');
+    courseQ.equalTo('tenantId', tenantId);
+    const course = await courseQ.get(courseId, { useMasterKey: true });
+    const courseTitle = course.get('title') || '';
+
+    // 2) Ownership check: Teachers can only see their own courses
+    if (role === 'Teacher' && course.get('teacherId') !== user.id) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    // 3) Load assignments in this course
+    const asgQ = new Parse.Query('Assignment');
+    asgQ.equalTo('tenantId', tenantId);
+    asgQ.equalTo('courseId', courseId);
+    asgQ.limit(1000);
+    const assignments = await asgQ.find({ useMasterKey: true });
+    if (!assignments.length) {
+      return res.json({ courseId, assignments: [] });
+    }
+
+    const asgById = new Map(assignments.map(a => [a.id, a]));
+    const assignmentIds = assignments.map(a => a.id);
+
+    // 4) Load graded submissions for these assignments
+    const subQ = new Parse.Query('Submission');
+    subQ.equalTo('tenantId', tenantId);
+    subQ.equalTo('status', 'graded');
+    subQ.containedIn('assignmentId', assignmentIds);
+    subQ.limit(10000);
+    const graded = await subQ.find({ useMasterKey: true });
+
+    if (!graded.length) {
+      return res.json({
+        courseId,
+        assignments: assignments.map(a => ({
+          id: a.id,
+          title: a.get('title') || '',
+          avgGrade: 0,
+          gradedCount: 0,
+          topSubmission: null,
+          bottomSubmission: null,
+        })),
+      });
+    }
+
+    // 5) Load student users for these submissions
+    const studentIds = Array.from(
+      new Set(graded.map(g => g.get('studentId')).filter(Boolean))
+    );
+    const usersById = new Map();
+    if (studentIds.length) {
+      const uQ = new Parse.Query('_User');
+      uQ.equalTo('tenantId', tenantId);
+      uQ.containedIn('objectId', studentIds);
+      uQ.limit(10000);
+      const users = await uQ.find({ useMasterKey: true });
+      users.forEach(u => usersById.set(u.id, u));
+    }
+
+    // 6) Aggregate per assignment
+    const statsByAsg = new Map(); // assignmentId -> { sum, count, max, min }
+    for (const s of graded) {
+      const aid = s.get('assignmentId');
+      if (!asgById.has(aid)) continue;
+      const grade = Number(s.get('grade') || 0);
+      let obj = statsByAsg.get(aid);
+      if (!obj) {
+        obj = { sum: 0, count: 0, max: null, min: null };
+        statsByAsg.set(aid, obj);
+      }
+      obj.sum += grade;
+      obj.count += 1;
+
+      const studentId = s.get('studentId');
+      const userObj = usersById.get(studentId);
+      const student = userObj
+        ? { id: userObj.id, username: userObj.get('username') }
+        : { id: studentId, username: null };
+
+      if (!obj.max || grade > obj.max.grade) {
+        obj.max = { grade, student };
+      }
+      if (!obj.min || grade < obj.min.grade) {
+        obj.min = { grade, student };
+      }
+    }
+
+    // 7) Build response
+    const result = assignments.map(a => {
+      const aid = a.id;
+      const title = a.get('title') || '';
+      const s = statsByAsg.get(aid);
+      if (!s) {
+        return {
+          id: aid,
+          title,
+          avgGrade: 0,
+          gradedCount: 0,
+          topSubmission: null,
+          bottomSubmission: null,
+        };
+      }
+      return {
+        id: aid,
+        title,
+        avgGrade: s.sum / s.count,
+        gradedCount: s.count,
+        topSubmission: s.max,
+        bottomSubmission: s.min,
+      };
+    });
+
+    res.json({ courseId,courseTitle, assignments: result });
+  } catch (err) {
+    console.error('courseAssignmentAnalytics error:', err);
+    res.status(500).json({ error: 'Failed to fetch assignment analytics' });
   }
 }
 
@@ -406,4 +713,13 @@ async function studentDashboardSummary(req, res) {
   }
 }
 
-module.exports = { postEvent, getOverview, postRollup, adminDashboardSummary, teacherDashboardSummary, studentDashboardSummary };
+module.exports = {
+  postEvent,
+  getOverview,
+  postRollup,
+  adminDashboardSummary,
+  teacherDashboardSummary,
+  studentDashboardSummary,
+  courseQuizAnalytics,
+  courseAssignmentAnalytics, // once you implement it
+};
