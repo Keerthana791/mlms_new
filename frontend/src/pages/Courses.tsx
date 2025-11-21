@@ -43,17 +43,25 @@ const [enrollError, setEnrollError] = useState<string | null>(null);
   
 
   useEffect(() => {
-    setTeachersLoading(true);
-    listTeachers()
-      .then((data) => {
-        setTeachers(data);
-        setTeachersError(null);
-      })
-      .catch((e: any) => {
-        setTeachersError(e?.response?.data?.error || 'Failed to load teachers');
-      })
-      .finally(() => setTeachersLoading(false));
-  }, [role]);
+  if (role !== 'Admin') {
+    // Non-admins don't need teacher list; reset and skip API call
+    setTeachers([]);
+    setTeachersError(null);
+    setTeachersLoading(false);
+    return;
+  }
+
+  setTeachersLoading(true);
+  listTeachers()
+    .then((data) => {
+      setTeachers(data);
+      setTeachersError(null);
+    })
+    .catch((e: any) => {
+      setTeachersError(e?.response?.data?.error || 'Failed to load teachers');
+    })
+    .finally(() => setTeachersLoading(false));
+}, [role]);
 
    useEffect(() => {
     if (role !== 'Student') return;

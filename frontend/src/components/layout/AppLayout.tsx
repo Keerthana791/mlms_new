@@ -26,22 +26,21 @@ export function AppLayout({ children }: Props) {
           <Link
             to="/dashboard"
             className={`flex items-center gap-2 px-2 py-2 rounded-md ${location.pathname.startsWith('/dashboard')
-                ? 'bg-gray-100 text-gray-900'
-                : 'text-gray-700 hover:bg-gray-100'
+              ? 'bg-gray-100 text-gray-900'
+              : 'text-gray-700 hover:bg-gray-100'
               }`}
           >
             <span>Dashboard</span>
           </Link>
           <Link
-  to="/courses"
-  className={`flex items-center gap-2 px-2 py-2 rounded-md ${
-    location.pathname.startsWith('/courses')
-      ? 'bg-gray-100 text-gray-900'
-      : 'text-gray-700 hover:bg-gray-100'
-  }`}
->
-  <span>Courses</span>
-</Link>
+            to="/courses"
+            className={`flex items-center gap-2 px-2 py-2 rounded-md ${location.pathname.startsWith('/courses')
+              ? 'bg-gray-100 text-gray-900'
+              : 'text-gray-700 hover:bg-gray-100'
+              }`}
+          >
+            <span>Courses</span>
+          </Link>
 
           <Link
             to="/assignments"
@@ -58,12 +57,21 @@ export function AppLayout({ children }: Props) {
           <Link
             to="/notifications"
             className={`block px-3 py-2 text-sm ${location.pathname.startsWith('/notifications')
-              ? 'bg-gray-100 font-medium'
-              : 'text-gray-700 hover:bg-gray-50'
+                ? 'bg-gray-100 font-medium'
+                : 'text-gray-700 hover:bg-gray-50'
               }`}
           >
-            Notifications
+          Notifications
           </Link>
+
+          {role === 'Admin' && (
+            <Link
+              to="/admin/users"
+              className="flex items-center gap-2 px-2 py-2 rounded-md text-gray-700 hover:bg-gray-100"
+            >
+              Manage users
+            </Link>
+          )}
         </nav>
         <div className="border-t px-4 py-3 text-xs text-gray-500">
           Tenant <b>{tenantId}</b>
