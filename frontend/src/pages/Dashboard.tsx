@@ -158,9 +158,14 @@ export function Dashboard() {
 
                             <div className="rounded-lg border bg-white p-4">
                                 <h2 className="text-sm font-medium text-gray-500">Quiz performance</h2>
-                                <p className="mt-2 text-xl font-semibold">
-                                    Avg score: {adminData.performance.quiz.avgScore.toFixed(1)}
-                                </p>
+                                <div className="mt-4">
+                                    <Link
+                                        to="/analytics/courses?mode=quiz"
+                                        className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    >
+                                        View quiz analytics
+                                    </Link>
+                                </div>
                                 <p className="mt-1 text-xs text-gray-500">
                                     Submitted attempts: {adminData.performance.quiz.submittedCount}
                                 </p>
@@ -174,6 +179,14 @@ export function Dashboard() {
                                 <p className="mt-1 text-xs text-gray-500">
                                     Graded submissions: {adminData.performance.assignment.gradedCount}
                                 </p>
+                                <div className="mt-4">
+                                    <Link
+                                        to="/analytics/courses?mode=assignment"
+                                        className="inline-flex items-center rounded-md border px-3 py-1.5 text-xs font-medium text-blue-600 border-blue-200 hover:bg-blue-50"
+                                    >
+                                        View assignment analytics
+                                    </Link>
+                                </div>
                             </div>
 
                             <div className="rounded-lg border bg-white p-4">
@@ -345,14 +358,7 @@ export function Dashboard() {
                                                         <div className="text-xs text-gray-500">{videoText}</div>
                                                     )}
                                                 </div>
-                                                <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                                                    <Link
-                                                        to={`/me/analytics/courses/${c.courseId}/quizzes`}
-                                                        className="px-2 py-1 rounded-full border bg-white text-blue-600 hover:bg-blue-50"
-                                                    >
-                                                        View quiz analytics
-                                                    </Link>
-                                                </div>
+
                                                 <div className="mt-2 flex flex-wrap gap-2 text-xs">
                                                     <Link
                                                         to={`/me/analytics/courses/${c.courseId}/quizzes`}
