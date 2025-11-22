@@ -141,11 +141,14 @@ const startAttempt = async (req, res) => {
     attempt.set('startedAt', now);
 
     // Compute expiresAt as min(start+duration, closeAt) if provided
-    const duration = Number(quiz.get('duration'));
-    let expiresAt = null;
-    if (!Number.isNaN(duration) && duration > 0) {
-      expiresAt = new Date(now.getTime() + duration * 60 * 1000);
-    }
+    // Compute expiresAt as min(start+durationMinutes, closeAt) if provided
+const durationMinutes = Number(
+  quiz.get('durationMinutes') ?? quiz.get('duration')
+);
+let expiresAt = null;
+if (!Number.isNaN(durationMinutes) && durationMinutes > 0) {
+  expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+}
     if (closeAt) {
       const closeTime = new Date(closeAt);
       expiresAt = expiresAt ? new Date(Math.min(expiresAt.getTime(), closeTime.getTime())) : closeTime;
@@ -238,37 +241,37 @@ const submitAttempt = async (req, res) => {
 
     // Notify student: QUIZ_GRADED
     // after computing total and saving attempt
-const quizTitle = quiz.get('title') || 'Quiz';
-const courseId = quiz.get('courseId');
-let courseTitle = 'Course';
-try {
-  const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
-  if (course && course.get('tenantId') === req.tenantId) {
-    courseTitle = course.get('title') || 'Course';
-  }
-} catch (e) { /* ignore */ }
+    const quizTitle = quiz.get('title') || 'Quiz';
+    const courseId = quiz.get('courseId');
+    let courseTitle = 'Course';
+    try {
+      const course = await new Parse.Query('Course').get(courseId, { useMasterKey: true });
+      if (course && course.get('tenantId') === req.tenantId) {
+        courseTitle = course.get('title') || 'Course';
+      }
+    } catch (e) { /* ignore */ }
 
-const totalMarks = Number(quiz.get('totalPoints') || 0);
-const score = total; // your computed score
+    const totalMarks = Number(quiz.get('totalPoints') || 0);
+    const score = total; // your computed score
 
-try {
-  await notify({
-    tenantId: req.tenantId,
-    userIds: [req.user.id],
-    type: 'QUIZ_GRADED',
-    title: `Quiz Graded: ${quizTitle}`,
-    message: `Your quiz "${quizTitle}" in course "${courseTitle}" was graded: ${score} out of ${totalMarks}`,
-    data: {
-      quizId,
-      courseId,
-      courseTitle,
-      attemptId: saved.id,
-      score,
-      totalMarks,
-    },
-    createdBy: req.user.id,
-  });
-} catch (e) { /* swallow notification errors */ }
+    try {
+      await notify({
+        tenantId: req.tenantId,
+        userIds: [req.user.id],
+        type: 'QUIZ_GRADED',
+        title: `Quiz Graded: ${quizTitle}`,
+        message: `Your quiz "${quizTitle}" in course "${courseTitle}" was graded: ${score} out of ${totalMarks}`,
+        data: {
+          quizId,
+          courseId,
+          courseTitle,
+          attemptId: saved.id,
+          score,
+          totalMarks,
+        },
+        createdBy: req.user.id,
+      });
+    } catch (e) { /* swallow notification errors */ }
 
     const out = await sanitizeAttemptOut(saved, req.user.get('role'), quiz, req.user);
     res.json(out);

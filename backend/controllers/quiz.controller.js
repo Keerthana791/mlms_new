@@ -38,7 +38,7 @@ async function hasAttempts(quizId, tenantId) {
 const createQuizForCourse = async (req, res) => {
   try {
     const courseId = req.params.courseId;
-    const { title, description, duration, showAnswersAfterSubmit, isPublished, openAt, closeAt } = req.body || {};
+    const { title, description, durationMinutes, showAnswersAfterSubmit, isPublished, openAt, closeAt } = req.body || {};
     if (!title) return res.status(400).json({ error: 'title is required' });
 
     // Validate open/close window if provided
@@ -55,15 +55,30 @@ const createQuizForCourse = async (req, res) => {
     quiz.set('teacherId', req.user.id);
     quiz.set('title', title);
     if (description !== undefined) quiz.set('description', description);
-    if (duration !== undefined) quiz.set('duration', duration);
+    if (durationMinutes !== undefined) {
+      quiz.set('durationMinutes', Number(durationMinutes));
+    }
     if (openAt !== undefined) quiz.set('openAt', openAt ? new Date(openAt) : null);
     if (closeAt !== undefined) quiz.set('closeAt', closeAt ? new Date(closeAt) : null);
     quiz.set('totalPoints', 0);
     quiz.set('showAnswersAfterSubmit', !!showAnswersAfterSubmit);
     quiz.set('isPublished', !!isPublished);
 
-    const saved = await quiz.save(null, { useMasterKey: true });
-    res.status(201).json(toJSON(saved));
+   const saved = await quiz.save(null, { useMasterKey: true });
+
+res.status(201).json({
+  id: saved.id,
+  title: saved.get('title'),
+  description: saved.get('description') || null,
+  totalPoints: saved.get('totalPoints') || 0,
+  durationMinutes: saved.get('durationMinutes') || null,
+  showAnswersAfterSubmit: !!saved.get('showAnswersAfterSubmit'),
+  isPublished: !!saved.get('isPublished'),
+  openAt: saved.get('openAt') || null,
+  closeAt: saved.get('closeAt') || null,
+  courseId: saved.get('courseId'),
+  teacherId: saved.get('teacherId'),
+});
   } catch (err) {
     console.error('Create quiz error:', err);
     res.status(err.status || 500).json({ error: err.status ? 'Forbidden' : 'Failed to create quiz' });
@@ -247,30 +262,30 @@ const closeQuiz = async (req, res) => {
 
     // Notify enrolled students: QUIZ_CLOSED
     // Notify enrolled students: QUIZ_CLOSED
-try {
-  const enrQ = new Parse.Query('Enrollment');
-  enrQ.equalTo('tenantId', req.tenantId);
-  enrQ.equalTo('courseId', courseId);
-  enrQ.equalTo('status', 'active');
-  const enrollments = await enrQ.find({ useMasterKey: true });
-  const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
-  if (studentIds.length) {
-    const titleText = saved.get('title') || 'Quiz';
-    await notify({
-      tenantId: req.tenantId,
-      userIds: studentIds,
-      type: 'QUIZ_CLOSED',
-      title: `Quiz Closed: ${titleText}`,
-      message: `Quiz "${titleText}" in course "${courseTitle}" was closed`,
-      data: {
-        quizId: saved.id,
-        courseId,
-        closeAt: saved.get('closeAt') || new Date(),
-      },
-      createdBy: req.user.id,
-    });
-  }
-} catch (e) { /* swallow notification errors */ }
+    try {
+      const enrQ = new Parse.Query('Enrollment');
+      enrQ.equalTo('tenantId', req.tenantId);
+      enrQ.equalTo('courseId', courseId);
+      enrQ.equalTo('status', 'active');
+      const enrollments = await enrQ.find({ useMasterKey: true });
+      const studentIds = Array.from(new Set(enrollments.map(e => e.get('studentId'))));
+      if (studentIds.length) {
+        const titleText = saved.get('title') || 'Quiz';
+        await notify({
+          tenantId: req.tenantId,
+          userIds: studentIds,
+          type: 'QUIZ_CLOSED',
+          title: `Quiz Closed: ${titleText}`,
+          message: `Quiz "${titleText}" in course "${courseTitle}" was closed`,
+          data: {
+            quizId: saved.id,
+            courseId,
+            closeAt: saved.get('closeAt') || new Date(),
+          },
+          createdBy: req.user.id,
+        });
+      }
+    } catch (e) { /* swallow notification errors */ }
 
     res.json(toJSON(saved));
   } catch (err) {

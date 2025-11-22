@@ -39,6 +39,7 @@ export default function CourseQuizzes() {
     const [createOpen, setCreateOpen] = useState(false);
     const [createTitle, setCreateTitle] = useState('');
     const [createDescription, setCreateDescription] = useState('');
+    const [createDurationMinutes, setCreateDurationMinutes] = useState<number | ''>('');
     const [creating, setCreating] = useState(false);
     const [createError, setCreateError] = useState<string | null>(null);
 
@@ -99,9 +100,12 @@ export default function CourseQuizzes() {
             await createQuiz(courseId, {
                 title: createTitle.trim(),
                 description: createDescription.trim() || undefined,
+                durationMinutes:
+                    createDurationMinutes === '' ? undefined : Number(createDurationMinutes),
             });
             setCreateTitle('');
             setCreateDescription('');
+            setCreateDurationMinutes('');
             setCreateOpen(false);
             await refreshQuizzes();
         } catch (e: any) {
@@ -112,15 +116,15 @@ export default function CourseQuizzes() {
     };
 
     const handleDeleteQuiz = async (quizId: string) => {
-  if (!courseId) return;
-  if (!window.confirm('Delete this quiz and all attempts? This cannot be undone.')) return;
-  try {
-    await deleteQuiz(courseId, quizId, true); // use force=true
-    await refreshQuizzes();
-  } catch (e: any) {
-    setQuizError(e?.response?.data?.error || 'Failed to delete quiz');
-  }
-};
+        if (!courseId) return;
+        if (!window.confirm('Delete this quiz and all attempts? This cannot be undone.')) return;
+        try {
+            await deleteQuiz(courseId, quizId, true); // use force=true
+            await refreshQuizzes();
+        } catch (e: any) {
+            setQuizError(e?.response?.data?.error || 'Failed to delete quiz');
+        }
+    };
 
     const handlePublish = async (quizId: string) => {
         if (!courseId) return;
@@ -218,6 +222,24 @@ export default function CourseQuizzes() {
                                                 onChange={(e) => setCreateDescription(e.target.value)}
                                             />
                                         </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="quiz-duration">Duration (minutes)</Label>
+                                            <input
+                                                id="quiz-duration"
+                                                type="number"
+                                                min={1}
+                                                className="w-full border rounded px-2 py-1 text-sm"
+                                                value={createDurationMinutes}
+                                                onChange={(e) => {
+                                                    const v = e.target.value;
+                                                    setCreateDurationMinutes(v === '' ? '' : Number(v));
+                                                }}
+                                                placeholder="e.g. 30"
+                                            />
+                                            <p className="text-xs text-gray-500">
+                                                How long students have to finish once they start the quiz.
+                                            </p>
+                                        </div>
 
                                         <Button type="submit" size="sm" disabled={creating}>
                                             {creating ? 'Creating…' : 'Create'}
@@ -262,7 +284,13 @@ export default function CourseQuizzes() {
                                             <div className="text-xs text-gray-500">
                                                 Status: {q.isPublished ? 'published' : 'unpublished'}
                                             </div>
+                                            {typeof q.durationMinutes === 'number' && (
+    <div className="text-xs text-gray-500">
+      Duration: {q.durationMinutes} minute(s)
+    </div>
+  )}
                                         </div>
+                                        
 
                                         <div className="flex items-center gap-2">
                                             {role === 'Student' && (

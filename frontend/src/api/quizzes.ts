@@ -8,6 +8,7 @@ export type Quiz = {
   isPublished?: boolean;  
   opensAt?: string | null;
   closesAt?: string | null;
+  durationMinutes?: number;
   createdAt?: string;
 };
 
@@ -25,6 +26,7 @@ export async function createQuiz(
     description?: string;
     opensAt?: string | null;
     closesAt?: string | null;
+    durationMinutes?: number;
   }
 ) {
   const { data } = await api.post<Quiz>(
@@ -42,6 +44,7 @@ export async function updateQuiz(
     description?: string;
     opensAt?: string | null;
     closesAt?: string | null;
+    durationMinutes?: number;
   }
 ) {
   const { data } = await api.put<Quiz>(
@@ -56,8 +59,7 @@ export async function publishQuiz(courseId: string, quizId: string) {
     `/api/courses/${courseId}/quizzes/${quizId}/publish`,
     {}
   );
-  const courseTitle = course ? course.get('title') || 'Course' : 'Course';
-const titleText = saved.get('title') || 'Quiz';
+  
   return data;
 }
 

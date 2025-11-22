@@ -35,6 +35,9 @@ export default function QuizAttemptPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
+  const [remainingSeconds, setRemainingSeconds] = useState<number | null>(null);
+
+
 
   // Load course for header
   useEffect(() => {
@@ -98,6 +101,80 @@ export default function QuizAttemptPage() {
     };
   }, [quizId]);
 
+  // Load attempt (active or start new) + questions
+  useEffect(() => {
+    let cancelled = false;
+    if (!quizId) return;
+    const qid = quizId;
+
+    async function init() {
+      setLoading(true);
+      setError(null);
+      try {
+        let att: QuizAttempt | null = null;
+        // Try active attempt first
+        try {
+          att = await getActiveAttempt(qid);
+        } catch (e: any) {
+          if (e?.response?.status === 404) {
+            // no active attempt → start new
+            att = await startAttempt(qid);
+          } else {
+            throw e;
+          }
+        }
+        if (cancelled) return;
+        setAttempt(att);
+
+        // Load questions
+        const qs = await listQuestions(qid);
+        if (cancelled) return;
+        setQuestions(qs);
+        // Initialize answers state as null
+        const initial: Record<string, number | null> = {};
+        qs.forEach((q) => {
+          initial[q.id] = null;
+        });
+        setAnswersById(initial);
+      } catch (e: any) {
+        if (cancelled) return;
+        setError(e?.response?.data?.error || 'Failed to start quiz');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [quizId]);
+
+  useEffect(() => {
+    if (!attempt || attempt.status === 'submitted') return;
+    if (attempt.remainingSeconds == null) return;
+
+    setRemainingSeconds(attempt.remainingSeconds);
+
+    const interval = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev == null) return prev;
+        if (prev <= 1) {
+          clearInterval(interval);
+          // Auto-submit when time is up, if not already submitted
+          if (attempt.status !== 'submitted') {
+            handleSubmit();
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attempt]);
+
   const handleSelect = (questionId: string, index: number) => {
     setAnswersById((prev) => ({
       ...prev,
@@ -142,7 +219,7 @@ export default function QuizAttemptPage() {
   };
 
   const isSubmitted = attempt?.status === 'submitted';
-
+  const timeUp = remainingSeconds !== null && remainingSeconds <= 0;
   if (role !== 'Student') {
     return (
       <AppLayout>
@@ -168,9 +245,17 @@ export default function QuizAttemptPage() {
                 Course: {course.title}
               </p>
             )}
-            {attempt && attempt.remainingSeconds != null && (
+            {attempt && remainingSeconds != null && (
               <p className="text-xs text-gray-500 mt-1">
-                Time remaining: {attempt.remainingSeconds} seconds
+                Time remaining:{' '}
+                <span
+                  className={
+                    remainingSeconds <= 60 ? 'text-red-600 font-semibold' : 'font-semibold'
+                  }
+                >
+                  {Math.floor(remainingSeconds / 60)}:
+                  {(remainingSeconds % 60).toString().padStart(2, '0')}
+                </span>
               </p>
             )}
           </div>
@@ -229,7 +314,7 @@ export default function QuizAttemptPage() {
                             type="radio"
                             name={q.id}
                             className="h-3 w-3"
-                            disabled={isSubmitted}
+                            disabled={isSubmitted || timeUp}
                             checked={answersById[q.id] === i}
                             onChange={() => handleSelect(q.id, i)}
                           />
@@ -247,7 +332,7 @@ export default function QuizAttemptPage() {
                 <Button
                   size="sm"
                   onClick={handleSubmit}
-                  disabled={submitting}
+                  disabled={submitting || timeUp}
                 >
                   {submitting ? 'Submitting…' : 'Submit quiz'}
                 </Button>
