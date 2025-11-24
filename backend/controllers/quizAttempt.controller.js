@@ -126,12 +126,19 @@ const startAttempt = async (req, res) => {
     await ensureEnrolledForCourse(quiz.get('courseId'), req.tenantId, req.user);
 
     // Prevent multiple attempts per student
-    const existing = new Parse.Query('QuizAttempt');
-    existing.equalTo('tenantId', req.tenantId);
-    existing.equalTo('quizId', quizId);
-    existing.equalTo('studentId', req.user.id);
-    const existingCount = await existing.count({ useMasterKey: true });
-    if (existingCount > 0) return res.status(400).json({ error: 'Multiple attempts are not allowed' });
+    // Prevent multiple attempts per student, but be idempotent:
+    // if an in_progress attempt already exists, just return it.
+    const existingQ = new Parse.Query('QuizAttempt');
+    existingQ.equalTo('tenantId', req.tenantId);
+    existingQ.equalTo('quizId', quizId);
+    existingQ.equalTo('studentId', req.user.id);
+    existingQ.equalTo('status', 'in_progress');
+    const existingAttempt = await existingQ.first({ useMasterKey: true });
+
+    if (existingAttempt) {
+      const out = await sanitizeAttemptOut(existingAttempt, req.user.get('role'), quiz, req.user);
+      return res.status(200).json(out);
+    }
 
     const Attempt = Parse.Object.extend('QuizAttempt');
     const attempt = new Attempt();
@@ -142,13 +149,13 @@ const startAttempt = async (req, res) => {
 
     // Compute expiresAt as min(start+duration, closeAt) if provided
     // Compute expiresAt as min(start+durationMinutes, closeAt) if provided
-const durationMinutes = Number(
-  quiz.get('durationMinutes') ?? quiz.get('duration')
-);
-let expiresAt = null;
-if (!Number.isNaN(durationMinutes) && durationMinutes > 0) {
-  expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
-}
+    const durationMinutes = Number(
+      quiz.get('durationMinutes') ?? quiz.get('duration')
+    );
+    let expiresAt = null;
+    if (!Number.isNaN(durationMinutes) && durationMinutes > 0) {
+      expiresAt = new Date(now.getTime() + durationMinutes * 60 * 1000);
+    }
     if (closeAt) {
       const closeTime = new Date(closeAt);
       expiresAt = expiresAt ? new Date(Math.min(expiresAt.getTime(), closeTime.getTime())) : closeTime;
